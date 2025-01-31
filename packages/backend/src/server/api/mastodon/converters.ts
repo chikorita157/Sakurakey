@@ -102,6 +102,10 @@ export class MastoConverters {
 	}
 
 	public encodeFile(f: Packed<'DriveFile'>): MastodonEntity.Attachment {
+		const { width, height } = f.properties;
+		const size = (width && height) ? `${width}x${height}` : undefined;
+		const aspect = (width && height) ? (width / height) : undefined;
+
 		return {
 			id: f.id,
 			type: this.fileType(f.type),
@@ -110,11 +114,19 @@ export class MastoConverters {
 			preview_url: f.thumbnailUrl,
 			text_url: f.url,
 			meta: {
-				width: f.properties.width,
-				height: f.properties.height,
+				original: {
+					width,
+					height,
+					size,
+					aspect,
+				},
+				width,
+				height,
+				size,
+				aspect,
 			},
-			description: f.comment ? f.comment : null,
-			blurhash: f.blurhash ? f.blurhash : null,
+			description: f.comment ?? null,
+			blurhash: f.blurhash ?? null,
 		};
 	}
 
@@ -295,7 +307,7 @@ export class MastoConverters {
 			sensitive: status.sensitive,
 			spoiler_text: note.cw ?? '',
 			visibility: status.visibility,
-			media_attachments: status.media_attachments,
+			media_attachments: status.media_attachments.map(a => convertAttachment(a)),
 			mentions: mentions,
 			tags: tags,
 			card: null, //FIXME
@@ -342,8 +354,27 @@ export function convertAccount(account: Entity.Account) {
 export function convertAnnouncement(announcement: Entity.Announcement) {
 	return simpleConvert(announcement);
 }
-export function convertAttachment(attachment: Entity.Attachment) {
-	return simpleConvert(attachment);
+export function convertAttachment(attachment: Entity.Attachment): MastodonEntity.Attachment {
+	const { width, height } = attachment.meta?.original ?? attachment.meta ?? {};
+	const size = (width && height) ? `${width}x${height}` : undefined;
+	const aspect = (width && height) ? (width / height) : undefined;
+	return {
+		...attachment,
+		meta: attachment.meta ? {
+			...attachment.meta,
+			original: attachment.meta.original ?? {
+				width: attachment.meta.width,
+				height: attachment.meta.height,
+				size,
+				aspect,
+				frame_rate: String(attachment.meta.fps),
+				duration: attachment.meta.duration,
+				bitrate: attachment.meta.audio_bitrate ? parseInt(attachment.meta.audio_bitrate) : undefined,
+			},
+			size,
+			aspect,
+		} : null,
+	};
 }
 export function convertFilter(filter: Entity.Filter) {
 	return simpleConvert(filter);
