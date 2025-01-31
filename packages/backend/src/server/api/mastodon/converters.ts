@@ -339,6 +339,7 @@ export function convertPoll(poll: Entity.Poll) {
 	return simpleConvert(poll);
 }
 
+// noinspection JSUnusedGlobalSymbols
 export function convertReaction(reaction: Entity.Reaction) {
 	if (reaction.accounts) {
 		reaction.accounts = reaction.accounts.map(convertAccount);
@@ -346,8 +347,25 @@ export function convertReaction(reaction: Entity.Reaction) {
 	return reaction;
 }
 
-export function convertRelationship(relationship: Entity.Relationship) {
-	return simpleConvert(relationship);
+// Megalodon sometimes returns broken / stubbed relationship data
+export function convertRelationship(relationship: Partial<Entity.Relationship> & { id: string }): MastodonEntity.Relationship {
+	return {
+		id: relationship.id,
+		following: relationship.following ?? false,
+		showing_reblogs: relationship.showing_reblogs ?? true,
+		notifying: relationship.notifying ?? true,
+		languages: [],
+		followed_by: relationship.followed_by ?? false,
+		blocking: relationship.blocking ?? false,
+		blocked_by: relationship.blocked_by ?? false,
+		muting: relationship.muting ?? false,
+		muting_notifications: relationship.muting_notifications ?? false,
+		requested: relationship.requested ?? false,
+		requested_by: relationship.requested_by ?? false,
+		domain_blocking: relationship.domain_blocking ?? false,
+		endorsed: relationship.endorsed ?? false,
+		note: relationship.note ?? '',
+	};
 }
 
 export function convertStatus(status: Entity.Status) {
@@ -361,6 +379,7 @@ export function convertStatus(status: Entity.Status) {
 	return status;
 }
 
+// noinspection JSUnusedGlobalSymbols
 export function convertStatusSource(status: Entity.StatusSource) {
 	return simpleConvert(status);
 }

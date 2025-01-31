@@ -74,7 +74,7 @@ export class ApiAccountMastodon {
 
 	public async addFollow() {
 		if (!this.request.params.id) throw new Error('Missing required parameter "id"');
-		const data = await this.client.followAccount( this.request.params.id );
+		const data = await this.client.followAccount(this.request.params.id);
 		const acct = convertRelationship(data.data);
 		acct.following = true;
 		return acct;
@@ -82,7 +82,7 @@ export class ApiAccountMastodon {
 
 	public async rmFollow() {
 		if (!this.request.params.id) throw new Error('Missing required parameter "id"');
-		const data = await this.client.unfollowAccount( this.request.params.id );
+		const data = await this.client.unfollowAccount(this.request.params.id);
 		const acct = convertRelationship(data.data);
 		acct.following = false;
 		return acct;
@@ -90,13 +90,13 @@ export class ApiAccountMastodon {
 
 	public async addBlock() {
 		if (!this.request.params.id) throw new Error('Missing required parameter "id"');
-		const data = await this.client.blockAccount( this.request.params.id );
+		const data = await this.client.blockAccount(this.request.params.id);
 		return convertRelationship(data.data);
 	}
 
 	public async rmBlock() {
 		if (!this.request.params.id) throw new Error('Missing required parameter "id"');
-		const data = await this.client.unblockAccount( this.request.params.id );
+		const data = await this.client.unblockAccount(this.request.params.id);
 		return convertRelationship(data.data);
 	}
 
@@ -111,7 +111,7 @@ export class ApiAccountMastodon {
 
 	public async rmMute() {
 		if (!this.request.params.id) throw new Error('Missing required parameter "id"');
-		const data = await this.client.unmuteAccount( this.request.params.id );
+		const data = await this.client.unmuteAccount(this.request.params.id);
 		return convertRelationship(data.data);
 	}
 
