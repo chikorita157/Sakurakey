@@ -145,22 +145,22 @@ export class ApiAccountMastodon {
 
 	public async getBookmarks() {
 		const data = await this.client.getBookmarks(parseTimelineArgs(this.request.query));
-		return data.data.map((status) => this.mastoConverters.convertStatus(status));
+		return Promise.all(data.data.map((status) => this.mastoConverters.convertStatus(status)));
 	}
 
 	public async getFavourites() {
 		const data = await this.client.getFavourites(parseTimelineArgs(this.request.query));
-		return data.data.map((status) => this.mastoConverters.convertStatus(status));
+		return Promise.all(data.data.map((status) => this.mastoConverters.convertStatus(status)));
 	}
 
 	public async getMutes() {
 		const data = await this.client.getMutes(parseTimelineArgs(this.request.query));
-		return data.data.map((account) => this.mastoConverters.convertAccount(account));
+		return Promise.all(data.data.map((account) => this.mastoConverters.convertAccount(account)));
 	}
 
 	public async getBlocks() {
 		const data = await this.client.getBlocks(parseTimelineArgs(this.request.query));
-		return data.data.map((account) => this.mastoConverters.convertAccount(account));
+		return Promise.all(data.data.map((account) => this.mastoConverters.convertAccount(account)));
 	}
 
 	public async acceptFollow() {

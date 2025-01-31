@@ -47,17 +47,18 @@ export class ApiSearchMastodon {
 	}
 
 	public async getStatusTrends() {
-		return await fetch(`${this.BASE_URL}/api/notes/featured`,
+		const data = await fetch(`${this.BASE_URL}/api/notes/featured`,
 			{
 				method: 'POST',
 				headers: {
 					'Accept': 'application/json',
 					'Content-Type': 'application/json',
 				},
-				body: JSON.stringify({}),
+				body: '{}',
 			})
-			.then(res => res.json())
-			.then(data => data.map((status: Status) => this.mastoConverter.convertStatus(status)));
+			.then(res => res.json() as Promise<Status[]>)
+			.then(data => data.map(status => this.mastoConverter.convertStatus(status)));
+		return Promise.all(data);
 	}
 
 	public async getSuggestions() {

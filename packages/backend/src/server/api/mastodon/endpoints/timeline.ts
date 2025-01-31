@@ -142,7 +142,8 @@ export class ApiTimelineMastodon {
 				const accessTokens = _request.headers.authorization;
 				const client = getClient(BASE_URL, accessTokens);
 				const data = await client.getAccountsInList(_request.params.id, _request.query);
-				reply.send(data.data.map((account: Entity.Account) => this.mastoConverters.convertAccount(account)));
+				const accounts = await Promise.all(data.data.map((account: Entity.Account) => this.mastoConverters.convertAccount(account)));
+				reply.send(accounts);
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`GET /v1/lists/${_request.params.id}/accounts`, data);
