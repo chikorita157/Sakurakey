@@ -9,23 +9,6 @@ import { MastoConverters, convertRelationship } from '../converters.js';
 import type { MegalodonInterface } from 'megalodon';
 import type { FastifyRequest } from 'fastify';
 
-const relationshipModel = {
-	id: '',
-	following: false,
-	followed_by: false,
-	delivery_following: false,
-	blocking: false,
-	blocked_by: false,
-	muting: false,
-	muting_notifications: false,
-	requested: false,
-	domain_blocking: false,
-	showing_reblogs: false,
-	endorsed: false,
-	notifying: false,
-	note: '',
-};
-
 export interface ApiAccountMastodonRoute {
 	Params: { id?: string },
 	Querystring: TimelineArgs & { acct?: string },
@@ -60,20 +43,9 @@ export class ApiAccountMastodon {
 		return this.mastoConverters.convertAccount(data.data.accounts[0]);
 	}
 
-	public async getRelationships(users: string[]) {
-		relationshipModel.id = users.toString() || '1';
-
-		if (!(users.length > 0)) {
-			return [relationshipModel];
-		}
-
-		const reqIds = [];
-		for (let i = 0; i < users.length; i++) {
-			reqIds.push(users[i]);
-		}
-
+	public async getRelationships(reqIds: string[]) {
 		const data = await this.client.getRelationships(reqIds);
-		return data.data.map((relationship) => convertRelationship(relationship));
+		return data.data.map(relationship => convertRelationship(relationship));
 	}
 
 	public async getStatuses() {

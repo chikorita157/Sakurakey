@@ -77,8 +77,8 @@ export class ApiSearchMastodon {
 					state: 'alive',
 				}),
 			})
-			.then((res) => res.json())
-			.then((data: Account[]) => data.map((entry => ({
+			.then(res => res.json() as Promise<Account[]>)
+			.then(data => data.map((entry => ({
 				source: 'global',
 				account: entry,
 			}))));
