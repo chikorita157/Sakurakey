@@ -9,7 +9,7 @@ import { getErrorData, MastodonLogger } from '@/server/api/mastodon/MastodonLogg
 import { parseTimelineArgs, TimelineArgs, toBoolean, toInt } from '@/server/api/mastodon/timelineArgs.js';
 import { AuthenticateService } from '@/server/api/AuthenticateService.js';
 import { convertAttachment, convertPoll, MastoConverters } from '../converters.js';
-import { getAccessToken, getClient } from '../MastodonApiServerService.js';
+import { getAccessToken, getClient, MastodonApiServerService } from '../MastodonApiServerService.js';
 import type { Entity } from 'megalodon';
 import type { FastifyInstance } from 'fastify';
 
@@ -24,17 +24,16 @@ export class ApiStatusMastodon {
 		private readonly mastoConverters: MastoConverters,
 		private readonly logger: MastodonLogger,
 		private readonly authenticateService: AuthenticateService,
+		private readonly mastodon: MastodonApiServerService,
 	) {}
 
 	public getStatus() {
 		this.fastify.get<{ Params: { id?: string } }>('/v1/statuses/:id', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
 				const data = await client.getStatus(_request.params.id);
-				reply.send(await this.mastoConverters.convertStatus(data.data));
+				reply.send(await this.mastoConverters.convertStatus(data.data, me));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`GET /v1/statuses/${_request.params.id}`, data);
@@ -62,14 +61,12 @@ export class ApiStatusMastodon {
 
 	public getContext() {
 		this.fastify.get<{ Params: { id?: string }, Querystring: TimelineArgs }>('/v1/statuses/:id/context', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const { data } = await client.getStatusContext(_request.params.id, parseTimelineArgs(_request.query));
-				const ancestors = await Promise.all(data.ancestors.map(async status => await this.mastoConverters.convertStatus(status)));
-				const descendants = await Promise.all(data.descendants.map(async status => await this.mastoConverters.convertStatus(status)));
+				const ancestors = await Promise.all(data.ancestors.map(async status => await this.mastoConverters.convertStatus(status, me)));
+				const descendants = await Promise.all(data.descendants.map(async status => await this.mastoConverters.convertStatus(status, me)));
 				reply.send({ ancestors, descendants });
 			} catch (e) {
 				const data = getErrorData(e);
@@ -204,11 +201,9 @@ export class ApiStatusMastodon {
 				'media_ids[]'?: string[],
 			}
 		}>('/v1/statuses', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			let body = _request.body;
 			try {
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				if ((!body.poll && body['poll[options][]']) || (!body.media_ids && body['media_ids[]'])
 				) {
 					body = normalizeQuery(body);
@@ -253,7 +248,7 @@ export class ApiStatusMastodon {
 				};
 
 				const data = await client.postStatus(text, options);
-				reply.send(await this.mastoConverters.convertStatus(data.data as Entity.Status));
+				reply.send(await this.mastoConverters.convertStatus(data.data as Entity.Status, me));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error('POST /v1/statuses', data);
@@ -278,10 +273,8 @@ export class ApiStatusMastodon {
 				},
 			}
 		}>('/v1/statuses/:id', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const body = _request.body;
 
 				if (!body.media_ids || !body.media_ids.length) {
@@ -300,7 +293,7 @@ export class ApiStatusMastodon {
 				};
 
 				const data = await client.editStatus(_request.params.id, options);
-				reply.send(await this.mastoConverters.convertStatus(data.data));
+				reply.send(await this.mastoConverters.convertStatus(data.data, me));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`POST /v1/statuses/${_request.params.id}`, data);
@@ -311,13 +304,11 @@ export class ApiStatusMastodon {
 
 	public addFavourite() {
 		this.fastify.post<{ Params: { id?: string } }>('/v1/statuses/:id/favourite', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = await client.createEmojiReaction(_request.params.id, '❤');
-				reply.send(await this.mastoConverters.convertStatus(data.data));
+				reply.send(await this.mastoConverters.convertStatus(data.data, me));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`POST /v1/statuses/${_request.params.id}/favorite`, data);
@@ -328,13 +319,11 @@ export class ApiStatusMastodon {
 
 	public rmFavourite() {
 		this.fastify.post<{ Params: { id?: string } }>('/v1/statuses/:id/unfavourite', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
 				const data = await client.deleteEmojiReaction(_request.params.id, '❤');
-				reply.send(await this.mastoConverters.convertStatus(data.data));
+				reply.send(await this.mastoConverters.convertStatus(data.data, me));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`GET /v1/statuses/${_request.params.id}/unfavorite`, data);
@@ -345,13 +334,11 @@ export class ApiStatusMastodon {
 
 	public reblogStatus() {
 		this.fastify.post<{ Params: { id?: string } }>('/v1/statuses/:id/reblog', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = await client.reblogStatus(_request.params.id);
-				reply.send(await this.mastoConverters.convertStatus(data.data));
+				reply.send(await this.mastoConverters.convertStatus(data.data, me));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`POST /v1/statuses/${_request.params.id}/reblog`, data);
@@ -362,13 +349,11 @@ export class ApiStatusMastodon {
 
 	public unreblogStatus() {
 		this.fastify.post<{ Params: { id?: string } }>('/v1/statuses/:id/unreblog', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = await client.unreblogStatus(_request.params.id);
-				reply.send(await this.mastoConverters.convertStatus(data.data));
+				reply.send(await this.mastoConverters.convertStatus(data.data, me));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`POST /v1/statuses/${_request.params.id}/unreblog`, data);
@@ -379,13 +364,11 @@ export class ApiStatusMastodon {
 
 	public bookmarkStatus() {
 		this.fastify.post<{ Params: { id?: string } }>('/v1/statuses/:id/bookmark', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = await client.bookmarkStatus(_request.params.id);
-				reply.send(await this.mastoConverters.convertStatus(data.data));
+				reply.send(await this.mastoConverters.convertStatus(data.data, me));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`POST /v1/statuses/${_request.params.id}/bookmark`, data);
@@ -396,13 +379,11 @@ export class ApiStatusMastodon {
 
 	public unbookmarkStatus() {
 		this.fastify.post<{ Params: { id?: string } }>('/v1/statuses/:id/unbookmark', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = await client.unbookmarkStatus(_request.params.id);
-				reply.send(await this.mastoConverters.convertStatus(data.data));
+				reply.send(await this.mastoConverters.convertStatus(data.data, me));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`POST /v1/statuses/${_request.params.id}/unbookmark`, data);
@@ -413,13 +394,11 @@ export class ApiStatusMastodon {
 
 	public pinStatus() {
 		this.fastify.post<{ Params: { id?: string } }>('/v1/statuses/:id/pin', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = await client.pinStatus(_request.params.id);
-				reply.send(await this.mastoConverters.convertStatus(data.data));
+				reply.send(await this.mastoConverters.convertStatus(data.data, me));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`POST /v1/statuses/${_request.params.id}/pin`, data);
@@ -430,13 +409,11 @@ export class ApiStatusMastodon {
 
 	public unpinStatus() {
 		this.fastify.post<{ Params: { id?: string } }>('/v1/statuses/:id/unpin', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = await client.unpinStatus(_request.params.id);
-				reply.send(await this.mastoConverters.convertStatus(data.data));
+				reply.send(await this.mastoConverters.convertStatus(data.data, me));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`POST /v1/statuses/${_request.params.id}/unpin`, data);
@@ -447,14 +424,12 @@ export class ApiStatusMastodon {
 
 	public reactStatus() {
 		this.fastify.post<{ Params: { id?: string, name?: string } }>('/v1/statuses/:id/react/:name', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
 				if (!_request.params.name) return reply.code(400).send({ error: 'Missing required parameter "name"' });
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = await client.createEmojiReaction(_request.params.id, _request.params.name);
-				reply.send(await this.mastoConverters.convertStatus(data.data));
+				reply.send(await this.mastoConverters.convertStatus(data.data, me));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`POST /v1/statuses/${_request.params.id}/react/${_request.params.name}`, data);
@@ -465,14 +440,12 @@ export class ApiStatusMastodon {
 
 	public unreactStatus() {
 		this.fastify.post<{ Params: { id?: string, name?: string } }>('/v1/statuses/:id/unreact/:name', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
 				if (!_request.params.name) return reply.code(400).send({ error: 'Missing required parameter "name"' });
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = await client.deleteEmojiReaction(_request.params.id, _request.params.name);
-				reply.send(await this.mastoConverters.convertStatus(data.data));
+				reply.send(await this.mastoConverters.convertStatus(data.data, me));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`POST /v1/statuses/${_request.params.id}/unreact/${_request.params.name}`, data);

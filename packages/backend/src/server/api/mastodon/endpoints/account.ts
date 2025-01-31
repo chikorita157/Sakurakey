@@ -5,6 +5,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { parseTimelineArgs, TimelineArgs } from '@/server/api/mastodon/timelineArgs.js';
+import { MiLocalUser } from '@/models/User.js';
 import { MastoConverters, convertRelationship } from '../converters.js';
 import type { MegalodonInterface } from 'megalodon';
 import type { FastifyRequest } from 'fastify';
@@ -20,6 +21,7 @@ export class ApiAccountMastodon {
 	constructor(
 		private readonly request: FastifyRequest<ApiAccountMastodonRoute>,
 		private readonly client: MegalodonInterface,
+		private readonly me: MiLocalUser | null,
 		private readonly mastoConverters: MastoConverters,
 	) {}
 
@@ -51,7 +53,7 @@ export class ApiAccountMastodon {
 	public async getStatuses() {
 		if (!this.request.params.id) throw new Error('Missing required parameter "id"');
 		const data = await this.client.getAccountStatuses(this.request.params.id, parseTimelineArgs(this.request.query));
-		return await Promise.all(data.data.map(async (status) => await this.mastoConverters.convertStatus(status)));
+		return await Promise.all(data.data.map(async (status) => await this.mastoConverters.convertStatus(status, this.me)));
 	}
 
 	public async getFollowers() {
@@ -117,12 +119,12 @@ export class ApiAccountMastodon {
 
 	public async getBookmarks() {
 		const data = await this.client.getBookmarks(parseTimelineArgs(this.request.query));
-		return Promise.all(data.data.map((status) => this.mastoConverters.convertStatus(status)));
+		return Promise.all(data.data.map((status) => this.mastoConverters.convertStatus(status, this.me)));
 	}
 
 	public async getFavourites() {
 		const data = await this.client.getFavourites(parseTimelineArgs(this.request.query));
-		return Promise.all(data.data.map((status) => this.mastoConverters.convertStatus(status)));
+		return Promise.all(data.data.map((status) => this.mastoConverters.convertStatus(status, this.me)));
 	}
 
 	public async getMutes() {

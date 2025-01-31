@@ -4,8 +4,8 @@
  */
 
 import { getErrorData, MastodonLogger } from '@/server/api/mastodon/MastodonLogger.js';
-import { convertConversation, convertList, MastoConverters } from '../converters.js';
-import { getClient } from '../MastodonApiServerService.js';
+import { convertList, MastoConverters } from '../converters.js';
+import { getClient, MastodonApiServerService } from '../MastodonApiServerService.js';
 import { parseTimelineArgs, TimelineArgs, toBoolean } from '../timelineArgs.js';
 import type { Entity } from 'megalodon';
 import type { FastifyInstance } from 'fastify';
@@ -15,18 +15,17 @@ export class ApiTimelineMastodon {
 		private readonly fastify: FastifyInstance,
 		private readonly mastoConverters: MastoConverters,
 		private readonly logger: MastodonLogger,
+		private readonly mastodon: MastodonApiServerService,
 	) {}
 
 	public getTL() {
 		this.fastify.get<{ Querystring: TimelineArgs }>('/v1/timelines/public', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = toBoolean(_request.query.local)
 					? await client.getLocalTimeline(parseTimelineArgs(_request.query))
 					: await client.getPublicTimeline(parseTimelineArgs(_request.query));
-				reply.send(await Promise.all(data.data.map(async (status: Entity.Status) => await this.mastoConverters.convertStatus(status))));
+				reply.send(await Promise.all(data.data.map(async (status: Entity.Status) => await this.mastoConverters.convertStatus(status, me))));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error('GET /v1/timelines/public', data);
@@ -37,12 +36,10 @@ export class ApiTimelineMastodon {
 
 	public getHomeTl() {
 		this.fastify.get<{ Querystring: TimelineArgs }>('/v1/timelines/home', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = await client.getHomeTimeline(parseTimelineArgs(_request.query));
-				reply.send(await Promise.all(data.data.map(async (status: Entity.Status) => await this.mastoConverters.convertStatus(status))));
+				reply.send(await Promise.all(data.data.map(async (status: Entity.Status) => await this.mastoConverters.convertStatus(status, me))));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error('GET /v1/timelines/home', data);
@@ -53,13 +50,11 @@ export class ApiTimelineMastodon {
 
 	public getTagTl() {
 		this.fastify.get<{ Params: { hashtag?: string }, Querystring: TimelineArgs }>('/v1/timelines/tag/:hashtag', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
 				if (!_request.params.hashtag) return reply.code(400).send({ error: 'Missing required parameter "hashtag"' });
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = await client.getTagTimeline(_request.params.hashtag, parseTimelineArgs(_request.query));
-				reply.send(await Promise.all(data.data.map(async (status: Entity.Status) => await this.mastoConverters.convertStatus(status))));
+				reply.send(await Promise.all(data.data.map(async (status: Entity.Status) => await this.mastoConverters.convertStatus(status, me))));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`GET /v1/timelines/tag/${_request.params.hashtag}`, data);
@@ -70,13 +65,11 @@ export class ApiTimelineMastodon {
 
 	public getListTL() {
 		this.fastify.get<{ Params: { id?: string }, Querystring: TimelineArgs }>('/v1/timelines/list/:id', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = await client.getListTimeline(_request.params.id, parseTimelineArgs(_request.query));
-				reply.send(await Promise.all(data.data.map(async (status: Entity.Status) => await this.mastoConverters.convertStatus(status))));
+				reply.send(await Promise.all(data.data.map(async (status: Entity.Status) => await this.mastoConverters.convertStatus(status, me))));
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error(`GET /v1/timelines/list/${_request.params.id}`, data);
@@ -87,12 +80,11 @@ export class ApiTimelineMastodon {
 
 	public getConversations() {
 		this.fastify.get<{ Querystring: TimelineArgs }>('/v1/conversations', async (_request, reply) => {
-			const BASE_URL = `${_request.protocol}://${_request.host}`;
-			const accessTokens = _request.headers.authorization;
-			const client = getClient(BASE_URL, accessTokens);
 			try {
+				const { client, me } = await this.mastodon.getAuthClient(_request);
 				const data = await client.getConversationTimeline(parseTimelineArgs(_request.query));
-				reply.send(data.data.map((conversation: Entity.Conversation) => convertConversation(conversation)));
+				const conversations = await Promise.all(data.data.map(async (conversation: Entity.Conversation) => await this.mastoConverters.convertConversation(conversation, me)));
+				reply.send(conversations);
 			} catch (e) {
 				const data = getErrorData(e);
 				this.logger.error('GET /v1/conversations', data);
