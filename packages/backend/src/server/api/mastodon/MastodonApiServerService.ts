@@ -18,6 +18,7 @@ import { ApiAccountMastodonRoute } from '@/server/api/mastodon/endpoints/account
 import { ApiSearchMastodonRoute } from '@/server/api/mastodon/endpoints/search.js';
 import { ApiFilterMastodonRoute } from '@/server/api/mastodon/endpoints/filter.js';
 import { ApiNotifyMastodonRoute } from '@/server/api/mastodon/endpoints/notifications.js';
+import { AuthenticateService } from '@/server/api/AuthenticateService.js';
 import { AuthMastodonRoute } from './endpoints/auth.js';
 import { toBoolean } from './timelineArgs.js';
 import { convertAnnouncement, convertFilter, convertAttachment, convertFeaturedTag, convertList, MastoConverters } from './converters.js';
@@ -25,9 +26,13 @@ import { getInstance } from './endpoints/meta.js';
 import { ApiAuthMastodon, ApiAccountMastodon, ApiFilterMastodon, ApiNotifyMastodon, ApiSearchMastodon, ApiTimelineMastodon, ApiStatusMastodon } from './endpoints.js';
 import type { FastifyInstance, FastifyPluginOptions } from 'fastify';
 
-export function getClient(BASE_URL: string, authorization: string | undefined): MegalodonInterface {
+export function getAccessToken(authorization: string | undefined): string | null {
 	const accessTokenArr = authorization?.split(' ') ?? [null];
-	const accessToken = accessTokenArr[accessTokenArr.length - 1];
+	return accessTokenArr[accessTokenArr.length - 1];
+}
+
+export function getClient(BASE_URL: string, authorization: string | undefined): MegalodonInterface {
+	const accessToken = getAccessToken(authorization);
 	return megalodon('misskey', BASE_URL, accessToken);
 }
 
@@ -47,6 +52,7 @@ export class MastodonApiServerService {
 		private readonly driveService: DriveService,
 		private readonly mastoConverter: MastoConverters,
 		private readonly logger: MastodonLogger,
+		private readonly authenticateService: AuthenticateService,
 	) { }
 
 	@bindThis
@@ -918,7 +924,7 @@ export class MastodonApiServerService {
 		//#endregion
 
 		//#region Status
-		const NoteEndpoint = new ApiStatusMastodon(fastify, this.mastoConverter, this.logger);
+		const NoteEndpoint = new ApiStatusMastodon(fastify, this.mastoConverter, this.logger, this.authenticateService);
 
 		// GET Endpoints
 		NoteEndpoint.getStatus();

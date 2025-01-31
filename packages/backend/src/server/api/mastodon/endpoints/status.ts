@@ -7,8 +7,9 @@ import querystring, { ParsedUrlQueryInput } from 'querystring';
 import { emojiRegexAtStartToEnd } from '@/misc/emoji-regex.js';
 import { getErrorData, MastodonLogger } from '@/server/api/mastodon/MastodonLogger.js';
 import { parseTimelineArgs, TimelineArgs, toBoolean, toInt } from '@/server/api/mastodon/timelineArgs.js';
+import { AuthenticateService } from '@/server/api/AuthenticateService.js';
 import { convertAttachment, convertPoll, MastoConverters } from '../converters.js';
-import { getClient } from '../MastodonApiServerService.js';
+import { getAccessToken, getClient } from '../MastodonApiServerService.js';
 import type { Entity } from 'megalodon';
 import type { FastifyInstance } from 'fastify';
 
@@ -22,6 +23,7 @@ export class ApiStatusMastodon {
 		private readonly fastify: FastifyInstance,
 		private readonly mastoConverters: MastoConverters,
 		private readonly logger: MastodonLogger,
+		private readonly authenticateService: AuthenticateService,
 	) {}
 
 	public getStatus() {
@@ -81,7 +83,8 @@ export class ApiStatusMastodon {
 		this.fastify.get<{ Params: { id?: string } }>('/v1/statuses/:id/history', async (_request, reply) => {
 			try {
 				if (!_request.params.id) return reply.code(400).send({ error: 'Missing required parameter "id"' });
-				const edits = await this.mastoConverters.getEdits(_request.params.id);
+				const [user] = await this.authenticateService.authenticate(getAccessToken(_request.headers.authorization));
+				const edits = await this.mastoConverters.getEdits(_request.params.id, user);
 				reply.send(edits);
 			} catch (e) {
 				const data = getErrorData(e);

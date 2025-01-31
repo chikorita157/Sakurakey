@@ -28,6 +28,7 @@ import { OpenApiServerService } from './api/openapi/OpenApiServerService.js';
 import { ClientServerService } from './web/ClientServerService.js';
 import { MastoConverters } from './api/mastodon/converters.js';
 import { MastodonLogger } from './api/mastodon/MastodonLogger.js';
+import { MastodonDataService } from './api/mastodon/MastodonDataService.js';
 import { FeedService } from './web/FeedService.js';
 import { UrlPreviewService } from './web/UrlPreviewService.js';
 import { ClientLoggerService } from './web/ClientLoggerService.js';
@@ -105,6 +106,7 @@ import { SigninWithPasskeyApiService } from './api/SigninWithPasskeyApiService.j
 		OAuth2ProviderService,
 		MastoConverters,
 		MastodonLogger,
+		MastodonDataService,
 	],
 	exports: [
 		ServerService,

@@ -10,14 +10,15 @@ import { DI } from '@/di-symbols.js';
 import { MfmService } from '@/core/MfmService.js';
 import type { Config } from '@/config.js';
 import { IMentionedRemoteUsers, MiNote } from '@/models/Note.js';
-import type { MiUser } from '@/models/User.js';
+import type { MiLocalUser, MiUser } from '@/models/User.js';
 import type { NoteEditRepository, UserProfilesRepository } from '@/models/_.js';
 import { awaitAll } from '@/misc/prelude/await-all.js';
 import { CustomEmojiService } from '@/core/CustomEmojiService.js';
 import { DriveFileEntityService } from '@/core/entities/DriveFileEntityService.js';
 import { IdService } from '@/core/IdService.js';
 import type { Packed } from '@/misc/json-schema.js';
-import { GetterService } from '../GetterService.js';
+import { MastodonDataService } from '@/server/api/mastodon/MastodonDataService.js';
+import { GetterService } from '@/server/api/GetterService.js';
 
 // Missing from Megalodon apparently
 // https://docs.joinmastodon.org/entities/StatusEdit/
@@ -62,6 +63,7 @@ export class MastoConverters {
 		private readonly customEmojiService: CustomEmojiService,
 		private readonly idService: IdService,
 		private readonly driveFileEntityService: DriveFileEntityService,
+		private readonly mastodonDataService: MastodonDataService,
 	) {}
 
 	private encode(u: MiUser, m: IMentionedRemoteUsers): MastodonEntity.Mention {
@@ -184,9 +186,11 @@ export class MastoConverters {
 		});
 	}
 
-	public async getEdits(id: string) {
-		const note = await this.getterService.getNote(id);
-
+	public async getEdits(id: string, me?: MiLocalUser | null) {
+		const note = await this.mastodonDataService.getNote(id, me);
+		if (!note) {
+			return [];
+		}
 		const noteUser = await this.getUser(note.userId).then(async (p) => await this.convertAccount(p));
 		const edits = await this.noteEditRepository.find({ where: { noteId: note.id }, order: { id: 'ASC' } });
 		const history: Promise<StatusEdit>[] = [];
