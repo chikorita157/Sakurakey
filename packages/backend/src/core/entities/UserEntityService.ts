@@ -81,6 +81,8 @@ export type UserRelation = {
 	isBlocked: boolean
 	isMuted: boolean
 	isRenoteMuted: boolean
+	isInstanceMuted?: boolean
+	memo?: string | null
 }
 
 @Injectable()
@@ -180,6 +182,9 @@ export class UserEntityService implements OnModuleInit {
 			isBlocked,
 			isMuted,
 			isRenoteMuted,
+			host,
+			memo,
+			mutedInstances,
 		] = await Promise.all([
 			this.followingsRepository.findOneBy({
 				followerId: me,
@@ -227,7 +232,24 @@ export class UserEntityService implements OnModuleInit {
 					muteeId: target,
 				},
 			}),
+			this.usersRepository.createQueryBuilder('u')
+				.select('u.host')
+				.where({ id: target })
+				.getRawOne<{ u_host: string }>()
+				.then(it => it?.u_host ?? null),
+			this.userMemosRepository.createQueryBuilder('m')
+				.select('m.memo')
+				.where({ userId: me, targetUserId: target })
+				.getRawOne<{ m_memo: string | null }>()
+				.then(it => it?.m_memo ?? null),
+			this.userProfilesRepository.createQueryBuilder('p')
+				.select('p.mutedInstances')
+				.where({ userId: me })
+				.getRawOne<{ p_mutedInstances: string[] }>()
+				.then(it => it?.p_mutedInstances ?? []),
 		]);
+
+		const isInstanceMuted = !!host && mutedInstances.includes(host);
 
 		return {
 			id: target,
@@ -240,6 +262,8 @@ export class UserEntityService implements OnModuleInit {
 			isBlocked,
 			isMuted,
 			isRenoteMuted,
+			isInstanceMuted,
+			memo,
 		};
 	}
 
@@ -254,6 +278,9 @@ export class UserEntityService implements OnModuleInit {
 			blockees,
 			muters,
 			renoteMuters,
+			hosts,
+			memos,
+			mutedInstances,
 		] = await Promise.all([
 			this.followingsRepository.findBy({ followerId: me })
 				.then(f => new Map(f.map(it => [it.followeeId, it]))),
@@ -292,6 +319,27 @@ export class UserEntityService implements OnModuleInit {
 				.where('m.muterId = :me', { me })
 				.getRawMany<{ m_muteeId: string }>()
 				.then(it => it.map(it => it.m_muteeId)),
+			this.usersRepository.createQueryBuilder('u')
+				.select(['u.id', 'u.host'])
+				.where({ id: In(targets) } )
+				.getRawMany<{ m_id: string, m_host: string }>()
+				.then(it => it.reduce((map, it) => {
+					map[it.m_id] = it.m_host;
+					return map;
+				}, {} as Record<string, string>)),
+			this.userMemosRepository.createQueryBuilder('m')
+				.select(['m.targetUserId', 'm.memo'])
+				.where({ userId: me, targetUserId: In(targets) })
+				.getRawMany<{ m_targetUserId: string, m_memo: string | null }>()
+				.then(it => it.reduce((map, it) => {
+					map[it.m_targetUserId] = it.m_memo;
+					return map;
+				}, {} as Record<string, string | null>)),
+			this.userProfilesRepository.createQueryBuilder('p')
+				.select('p.mutedInstances')
+				.where({ userId: me })
+				.getRawOne<{ p_mutedInstances: string[] }>()
+				.then(it => it?.p_mutedInstances ?? []),
 		]);
 
 		return new Map(
@@ -311,6 +359,8 @@ export class UserEntityService implements OnModuleInit {
 						isBlocked: blockees.includes(target),
 						isMuted: muters.includes(target),
 						isRenoteMuted: renoteMuters.includes(target),
+						isInstanceMuted: mutedInstances.includes(hosts[target]),
+						memo: memos[target] ?? null,
 					},
 				];
 			}),
