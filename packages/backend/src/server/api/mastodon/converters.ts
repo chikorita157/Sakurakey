@@ -362,15 +362,18 @@ export function convertAttachment(attachment: Entity.Attachment): MastodonEntity
 		...attachment,
 		meta: attachment.meta ? {
 			...attachment.meta,
-			original: attachment.meta.original ?? {
-				width: attachment.meta.width,
-				height: attachment.meta.height,
+			original: {
+				...attachment.meta.original,
+				width,
+				height,
 				size,
 				aspect,
 				frame_rate: String(attachment.meta.fps),
 				duration: attachment.meta.duration,
 				bitrate: attachment.meta.audio_bitrate ? parseInt(attachment.meta.audio_bitrate) : undefined,
 			},
+			width,
+			height,
 			size,
 			aspect,
 		} : null,
