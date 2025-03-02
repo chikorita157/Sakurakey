@@ -368,6 +368,7 @@ export class SearchService {
 		limit?: number;
 	}): Promise<MiNote[]> {
 		const meta = await this.metaService.fetch(true);
+		if (this.meilisearch) {
 		if (this.meilisearch && !opts.disableMeili) {
 			const filter: Q = {
 				op: 'and',
@@ -460,7 +461,8 @@ export class SearchService {
 				return true;
 			});
 			return notes.sort((a, b) => a.id > b.id ? -1 : 1);
-		} else if (this.elasticsearch) {
+		}
+	} else if (this.elasticsearch) {
 			const esFilter: any = {
 				bool: {
 					must: [],
