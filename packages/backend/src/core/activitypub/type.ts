@@ -57,9 +57,16 @@ export function getOneApId(value: ApObject): string {
 }
 
 /**
+ * Minimal AP payload - just an object with optional ID.
+ */
+export interface ObjectWithId {
+	id?: string;
+}
+
+/**
  * Get ActivityStreams Object id
  */
-export function getApId(value: string | IObject | [string | IObject]): string {
+export function getApId(value: string | ObjectWithId | [string | ObjectWithId]): string {
 	// eslint-disable-next-line no-param-reassign
 	value = fromTuple(value);
 
@@ -71,7 +78,7 @@ export function getApId(value: string | IObject | [string | IObject]): string {
 /**
  * Get ActivityStreams Object id, or null if not present
  */
-export function getNullableApId(value: string | IObject | [string | IObject]): string | null {
+export function getNullableApId(value: string | ObjectWithId | [string | ObjectWithId]): string | null {
 	// eslint-disable-next-line no-param-reassign
 	value = fromTuple(value);
 
@@ -202,7 +209,7 @@ export interface IActor extends IObject {
 	manuallyApprovesFollowers?: boolean;
 	movedTo?: string;
 	alsoKnownAs?: string[];
-	discoverable?: boolean;
+	discoverable?: boolean | null;
 	inbox: string;
 	sharedInbox?: string;	// 後方互換性のため
 	publicKey?: {
@@ -270,6 +277,11 @@ export interface IApEmoji extends IObject {
 	type: 'Emoji';
 	name: string;
 	updated: string;
+	// Misskey拡張。後方互換性のためにoptional。
+	// 将来の拡張性を考慮してobjectにしている
+	_misskey_license?: {
+		freeText: string | null;
+	};
 }
 
 export const isEmoji = (object: IObject): object is IApEmoji =>
@@ -285,6 +297,8 @@ export const validDocumentTypes = ['Audio', 'Document', 'Image', 'Page', 'Video'
 
 export interface IApDocument extends IObject {
 	type: 'Audio' | 'Document' | 'Image' | 'Page' | 'Video';
+	width?: number;
+	height?: number;
 }
 
 export const isDocument = (object: IObject): object is IApDocument => {

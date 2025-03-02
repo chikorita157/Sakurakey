@@ -139,6 +139,10 @@ export const packedMetaLiteSchema = {
 			type: 'boolean',
 			optional: false, nullable: true,
 		},
+		robotsTxt: {
+			type: 'string',
+			optional: false, nullable: true,
+		},
 		enableTestcaptcha: {
 			type: 'boolean',
 			optional: false, nullable: false,
@@ -315,6 +319,11 @@ export const packedMetaLiteSchema = {
 		},
 		maxFileSize: {
 			type: 'number',
+			optional: false, nullable: false,
+		},
+		federation: {
+			type: 'string',
+			enum: ['all', 'specified', 'none'],
 			optional: false, nullable: false,
 		},
 	},

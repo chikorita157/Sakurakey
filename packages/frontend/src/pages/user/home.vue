@@ -15,7 +15,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<MkRemoteCaution v-if="user.host != null" :href="user.url ?? user.uri!" class="warn"/>
 
 				<div :key="user.id" class="main _panel">
-					<div class="banner-container" :style="style">
+					<div class="banner-container" :class="{ [$style.bannerContainerTall]: useTallBanner }" :style="style">
 						<div ref="bannerEl" class="banner" :style="style"></div>
 						<div class="fade"></div>
 						<div class="title">
@@ -39,12 +39,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 							<li v-if="user.isBlocking">{{ i18n.ts.blocked }}</li>
 							<li v-if="user.isBlocked && $i.isModerator">{{ i18n.ts.blockingYou }}</li>
 						</ul>
-						<div class="actions">
-							<button class="menu _button" @click="menu"><i class="ti ti-dots"></i></button>
-							<MkFollowButton v-if="$i?.id != user.id" v-model:user="user" :inline="true" :transparent="false" :full="true" class="koudoku"/>
+						<div :class="$style.actions" class="actions">
+							<button :class="$style.actionsMenu" class="menu _button" @click="menu"><i class="ti ti-dots"></i></button>
+							<MkFollowButton v-if="$i?.id != user.id" v-model:user="user" :class="$style.actionsFollow" :disabled="disableFollowControls" :inline="true" :transparent="false" :full="true" class="koudoku" @update:wait="onFollowButtonDisabledChanged"/>
+							<div v-if="hasFollowRequest" :class="$style.actionsBanner">{{ i18n.ts.receiveFollowRequest }}</div>
+							<MkButton v-if="hasFollowRequest" :class="$style.actionsAccept" :disabled="disableFollowControls" :inline="true" :transparent="false" :full="true" rounded primary @click="acceptFollowRequest"><i class="ti ti-check"/> {{ i18n.ts.accept }}</MkButton>
+							<MkButton v-if="hasFollowRequest" :class="$style.actionsReject" :disabled="disableFollowControls" :inline="true" :transparent="false" :full="true" rounded danger @click="rejectFollowRequest"><i class="ti ti-x"/> {{ i18n.ts.reject }}</MkButton>
 						</div>
 					</div>
-					<MkAvatar class="avatar" :user="user" indicator/>
+					<MkAvatar class="avatar" :class="{ [$style.avatarTall]: useTallBanner }" :user="user" indicator/>
 					<div class="title">
 						<MkUserName :user="user" :nowrap="false" class="name"/>
 						<div class="bottom">
@@ -138,7 +141,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<MkInfo v-if="user.pinnedNotes.length === 0 && $i?.id === user.id">{{ i18n.ts.userPagePinTip }}</MkInfo>
 				<template v-if="narrow">
 					<MkLazy>
-						<XFiles :key="user.id" :user="user" :collapsed="true"/>
+						<XFiles :key="user.id" :user="user" :collapsed="true" @unfold="emit('unfoldFiles')"/>
 					</MkLazy>
 					<MkLazy>
 						<XActivity :key="user.id" :user="user" :collapsed="true"/>
@@ -180,7 +183,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</div>
 		</div>
 		<div v-if="!narrow" class="sub _gaps" style="container-type: inline-size;">
-			<XFiles :key="user.id" :user="user"/>
+			<XFiles :key="user.id" :user="user" @unfold="emit('unfoldFiles')"/>
 			<XActivity :key="user.id" :user="user"/>
 			<XListenBrainz v-if="user.listenbrainz && listenbrainzdata" :key="user.id" :user="user"/>
 		</div>
@@ -220,8 +223,8 @@ import MkSparkle from '@/components/MkSparkle.vue';
 
 const MkNote = defineAsyncComponent(() =>
 	defaultStore.state.noteDesign === 'sharkey'
-	? import('@/components/SkNote.vue')
-	: import('@/components/MkNote.vue'),
+		? import('@/components/SkNote.vue')
+		: import('@/components/MkNote.vue'),
 );
 
 function calcAge(birthdate: string): number {
@@ -242,7 +245,6 @@ function calcAge(birthdate: string): number {
 const XFiles = defineAsyncComponent(() => import('./index.files.vue'));
 const XActivity = defineAsyncComponent(() => import('./index.activity.vue'));
 const XListenBrainz = defineAsyncComponent(() => import('./index.listenbrainz.vue'));
-//const XTimeline = defineAsyncComponent(() => import('./index.timeline.vue'));
 
 const props = withDefaults(defineProps<{
 	user: Misskey.entities.UserDetailed;
@@ -251,6 +253,10 @@ const props = withDefaults(defineProps<{
 }>(), {
 	disableNotes: false,
 });
+
+const emit = defineEmits<{
+	(ev: 'unfoldFiles'): void;
+}>();
 
 const router = useRouter();
 
@@ -307,7 +313,7 @@ const pagination = {
 	endpoint: 'users/featured-notes' as const,
 	limit: 10,
 	params: computed(() => ({
-		userId: props.user.id
+		userId: props.user.id,
 	})),
 };
 
@@ -382,6 +388,42 @@ async function updateMemo() {
 		userId: props.user.id,
 	});
 	isEditingMemo.value = false;
+}
+
+// Set true to disable the follow / follow request controls
+const disableFollowControls = ref(false);
+const hasFollowRequest = computed(() => user.value.hasPendingFollowRequestToYou);
+const useTallBanner = computed(() => hasFollowRequest.value && narrow.value);
+
+async function onFollowButtonDisabledChanged(disabled: boolean) {
+	try {
+		// Refresh the UI after MkFollowButton changes the follow relation
+		if (!disabled) {
+			user.value = await os.apiWithDialog('users/show', { userId: user.value.id });
+		}
+	} finally {
+		disableFollowControls.value = disabled;
+	}
+}
+
+async function acceptFollowRequest() {
+	try {
+		disableFollowControls.value = true;
+		await os.apiWithDialog('following/requests/accept', { userId: user.value.id });
+		user.value = await os.apiWithDialog('users/show', { userId: user.value.id });
+	} finally {
+		disableFollowControls.value = false;
+	}
+}
+
+async function rejectFollowRequest() {
+	try {
+		disableFollowControls.value = true;
+		await os.apiWithDialog('following/requests/reject', { userId: user.value.id });
+		user.value = await os.apiWithDialog('users/show', { userId: user.value.id });
+	} finally {
+		disableFollowControls.value = false;
+	}
 }
 
 watch([props.user], () => {
@@ -859,5 +901,49 @@ onUnmounted(() => {
 	> :not(:first-child) {
 		margin-left: 8px;
 	}
+}
+
+.actions {
+	display: grid;
+	grid-template-rows: min-content min-content min-content;
+	grid-template-columns: min-content auto 1fr;
+	grid-template-areas:
+		"menu follow follow"
+		"banner banner banner"
+		"accept accept reject";
+}
+
+.actionsMenu {
+	grid-area: menu;
+	width: unset;
+}
+
+.actionsFollow {
+	grid-area: follow;
+	margin-left: 8px;
+}
+
+.actionsBanner {
+	grid-area: banner;
+	justify-self: center;
+	margin-top: 8px;
+	margin-bottom: 4px;
+}
+
+.actionsAccept {
+	grid-area: accept;
+}
+
+.actionsReject {
+	grid-area: reject;
+	margin-left: 8px;
+}
+
+.bannerContainerTall {
+	height: 200px !important;
+}
+
+.avatarTall {
+	top: 150px !important;
 }
 </style>

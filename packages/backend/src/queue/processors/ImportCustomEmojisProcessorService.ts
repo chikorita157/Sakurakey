@@ -14,6 +14,7 @@ import { createTempDir } from '@/misc/create-temp.js';
 import { DriveService } from '@/core/DriveService.js';
 import { DownloadService } from '@/core/DownloadService.js';
 import { bindThis } from '@/decorators.js';
+import type { Config } from '@/config.js';
 import { QueueLoggerService } from '../QueueLoggerService.js';
 import type * as Bull from 'bullmq';
 import type { DbUserImportJobData } from '../types.js';
@@ -24,6 +25,9 @@ export class ImportCustomEmojisProcessorService {
 	private logger: Logger;
 
 	constructor(
+		@Inject(DI.config)
+		private config: Config,
+
 		@Inject(DI.driveFilesRepository)
 		private driveFilesRepository: DriveFilesRepository,
 
@@ -57,7 +61,7 @@ export class ImportCustomEmojisProcessorService {
 
 		try {
 			fs.writeFileSync(destPath, '', 'binary');
-			await this.downloadService.downloadUrl(file.url, destPath);
+			await this.downloadService.downloadUrl(file.url, destPath, { operationTimeout: this.config.import?.downloadTimeout, maxSize: this.config.import?.maxFileSize });
 		} catch (e) { // TODO: 何度か再試行
 			if (e instanceof Error || typeof e === 'string') {
 				this.logger.error(e);
@@ -88,6 +92,7 @@ export class ImportCustomEmojisProcessorService {
 				await this.emojisRepository.delete({
 					name: nameNfc,
 				});
+
 				try {
 					const driveFile = await this.driveService.addFile({
 						user: null,
@@ -96,11 +101,13 @@ export class ImportCustomEmojisProcessorService {
 						force: true,
 					});
 					await this.customEmojiService.add({
+						originalUrl: driveFile.url,
+						publicUrl: driveFile.webpublicUrl ?? driveFile.url,
+						fileType: driveFile.webpublicType ?? driveFile.type,
 						name: nameNfc,
 						category: emojiInfo.category?.normalize('NFC'),
 						host: null,
 						aliases: emojiInfo.aliases?.map((a: string) => a.normalize('NFC')),
-						driveFile,
 						license: emojiInfo.license,
 						isSensitive: emojiInfo.isSensitive,
 						localOnly: emojiInfo.localOnly,

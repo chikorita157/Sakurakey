@@ -20,12 +20,12 @@ class HomeTimelineChannel extends Channel {
 	private withFiles: boolean;
 
 	constructor(
-		private noteEntityService: NoteEntityService,
+		noteEntityService: NoteEntityService,
 
 		id: string,
 		connection: Channel['connection'],
 	) {
-		super(id, connection);
+		super(id, connection, noteEntityService);
 		//this.onNote = this.onNote.bind(this);
 	}
 
@@ -81,24 +81,12 @@ class HomeTimelineChannel extends Channel {
 
 		if (this.isNoteMutedOrBlocked(note)) return;
 
-		const reactionsToFetch = [];
-		if (this.user && isRenotePacked(note) && !isQuotePacked(note)) {
-			if (note.renote) {
-				reactionsToFetch.push(this.assignMyReaction(note.renote, this.noteEntityService));
-				if (note.renote.reply) {
-					reactionsToFetch.push(this.assignMyReaction(note.renote.reply, this.noteEntityService));
-				}
-			}
-		}
-		if (this.user && note.reply) {
-			reactionsToFetch.push(this.assignMyReaction(note.reply, this.noteEntityService));
-		}
+		const clonedNote = await this.assignMyReaction(note);
+		await this.hideNote(clonedNote);
 
-		await Promise.all(reactionsToFetch);
+		this.connection.cacheNote(clonedNote);
 
-		this.connection.cacheNote(note);
-
-		this.send('note', note);
+		this.send('note', clonedNote);
 	}
 
 	@bindThis

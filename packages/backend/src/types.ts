@@ -58,6 +58,8 @@ export const mutedNoteReasons = ['word', 'manual', 'spam', 'other'] as const;
 export const followingVisibilities = ['public', 'followers', 'private'] as const;
 export const followersVisibilities = ['public', 'followers', 'private'] as const;
 
+export const defaultCWPriorities = ['default', 'parent', 'defaultParent', 'parentDefault'] as const;
+
 /**
  * ユーザーがエクスポートできるものの種類
  *
@@ -98,6 +100,7 @@ export const moderationLogTypes = [
 	'deleteGlobalAnnouncement',
 	'deleteUserAnnouncement',
 	'resetPassword',
+	'setMandatoryCW',
 	'setRemoteInstanceNSFW',
 	'unsetRemoteInstanceNSFW',
 	'suspendRemoteInstance',
@@ -129,6 +132,10 @@ export const moderationLogTypes = [
 	'deletePage',
 	'deleteFlash',
 	'deleteGalleryPost',
+	'acceptQuotesUser',
+	'rejectQuotesUser',
+	'acceptQuotesInstance',
+	'rejectQuotesInstance',
 ] as const;
 
 export type ModerationLogPayloads = {
@@ -255,6 +262,13 @@ export type ModerationLogPayloads = {
 		userHost: string | null;
 	};
 	resetPassword: {
+		userId: string;
+		userUsername: string;
+		userHost: string | null;
+	};
+	setMandatoryCW: {
+		newCW: string | null;
+		oldCW: string | null;
 		userId: string;
 		userUsername: string;
 		userHost: string | null;
@@ -406,6 +420,24 @@ export type ModerationLogPayloads = {
 		postUserId: string;
 		postUserUsername: string;
 		post: any;
+	};
+	acceptQuotesUser: {
+		userId: string,
+		userUsername: string,
+		userHost: string | null,
+	};
+	rejectQuotesUser: {
+		userId: string,
+		userUsername: string,
+		userHost: string | null,
+	};
+	acceptQuotesInstance: {
+		id: string;
+		host: string;
+	};
+	rejectQuotesInstance: {
+		id: string;
+		host: string;
 	};
 };
 

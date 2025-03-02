@@ -144,6 +144,7 @@ type Option = {
 	uri?: string | null;
 	url?: string | null;
 	app?: MiApp | null;
+	processErrors?: string[] | null;
 };
 
 export type PureRenoteOption = Option & { renote: MiNote } & ({ text?: null } | { cw?: null } | { reply?: null } | { poll?: null } | { files?: null | [] });
@@ -228,7 +229,7 @@ export class NoteCreateService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	public async create(user: {
+	public async create(user: MiUser & {
 		id: MiUser['id'];
 		username: MiUser['username'];
 		host: MiUser['host'];
@@ -308,6 +309,9 @@ export class NoteCreateService implements OnApplicationShutdown {
 					throw new Error('Renote target is not public or home');
 			}
 		}
+
+		// Check quote permissions
+		await this.checkQuotePermissions(data, user);
 
 		// Check blocking
 		if (this.isRenote(data) && !this.isQuote(data)) {
@@ -435,7 +439,7 @@ export class NoteCreateService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	public async import(user: {
+	public async import(user: MiUser & {
 		id: MiUser['id'];
 		username: MiUser['username'];
 		host: MiUser['host'];
@@ -482,14 +486,15 @@ export class NoteCreateService implements OnApplicationShutdown {
 			renoteUserId: data.renote ? data.renote.userId : null,
 			renoteUserHost: data.renote ? data.renote.userHost : null,
 			userHost: user.host,
+			processErrors: data.processErrors,
 		});
 
 		// should really not happen, but better safe than sorry
 		if (data.reply?.id === insert.id) {
-			throw new Error("A note can't reply to itself");
+			throw new Error('A note can\'t reply to itself');
 		}
 		if (data.renote?.id === insert.id) {
-			throw new Error("A note can't renote itself");
+			throw new Error('A note can\'t renote itself');
 		}
 
 		if (data.uri != null) insert.uri = data.uri;
@@ -552,7 +557,7 @@ export class NoteCreateService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	private async postNoteCreated(note: MiNote, user: {
+	private async postNoteCreated(note: MiNote, user: MiUser & {
 		id: MiUser['id'];
 		username: MiUser['username'];
 		host: MiUser['host'];
@@ -678,14 +683,7 @@ export class NoteCreateService implements OnApplicationShutdown {
 
 			this.roleService.addNoteToRoleTimeline(noteObj);
 
-			this.webhookService.getActiveWebhooks().then(webhooks => {
-				webhooks = webhooks.filter(x => x.userId === user.id && x.on.includes('note'));
-				for (const webhook of webhooks) {
-					this.queueService.userWebhookDeliver(webhook, 'note', {
-						note: noteObj,
-					});
-				}
-			});
+			this.webhookService.enqueueUserWebhook(user.id, 'note', { note: noteObj });
 
 			const nm = new NotificationManager(this.mutingsRepository, this.notificationService, user, note);
 
@@ -717,13 +715,7 @@ export class NoteCreateService implements OnApplicationShutdown {
 					if (!isThreadMuted && !muted) {
 						nm.push(data.reply.userId, 'reply');
 						this.globalEventService.publishMainStream(data.reply.userId, 'reply', noteObj);
-
-						const webhooks = (await this.webhookService.getActiveWebhooks()).filter(x => x.userId === data.reply!.userId && x.on.includes('reply'));
-						for (const webhook of webhooks) {
-							this.queueService.userWebhookDeliver(webhook, 'reply', {
-								note: noteObj,
-							});
-						}
+						this.webhookService.enqueueUserWebhook(data.reply.userId, 'reply', { note: noteObj });
 					}
 				}
 			}
@@ -757,22 +749,16 @@ export class NoteCreateService implements OnApplicationShutdown {
 				// Publish event
 				if ((user.id !== data.renote.userId) && data.renote.userHost === null) {
 					this.globalEventService.publishMainStream(data.renote.userId, 'renote', noteObj);
-
-					const webhooks = (await this.webhookService.getActiveWebhooks()).filter(x => x.userId === data.renote!.userId && x.on.includes('renote'));
-					for (const webhook of webhooks) {
-						this.queueService.userWebhookDeliver(webhook, 'renote', {
-							note: noteObj,
-						});
-					}
+					this.webhookService.enqueueUserWebhook(data.renote.userId, 'renote', { note: noteObj });
 				}
 			}
 
 			nm.notify();
 
 			//#region AP deliver
-			if (this.userEntityService.isLocalUser(user)) {
+			if (!data.localOnly && this.userEntityService.isLocalUser(user)) {
 				(async () => {
-					const noteActivity = await this.renderNoteOrRenoteActivity(data, note);
+					const noteActivity = await this.renderNoteOrRenoteActivity(data, note, user);
 					const dm = this.apDeliverManagerService.createDeliverManager(user, noteActivity);
 
 					// メンションされたリモートユーザーに配送
@@ -905,13 +891,7 @@ export class NoteCreateService implements OnApplicationShutdown {
 			});
 
 			this.globalEventService.publishMainStream(u.id, 'mention', detailPackedNote);
-
-			const webhooks = (await this.webhookService.getActiveWebhooks()).filter(x => x.userId === u.id && x.on.includes('mention'));
-			for (const webhook of webhooks) {
-				this.queueService.userWebhookDeliver(webhook, 'mention', {
-					note: detailPackedNote,
-				});
-			}
+			this.webhookService.enqueueUserWebhook(u.id, 'mention', { note: detailPackedNote });
 
 			// Create notification
 			nm.push(u.id, 'mention');
@@ -924,12 +904,12 @@ export class NoteCreateService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	private async renderNoteOrRenoteActivity(data: Option, note: MiNote) {
+	private async renderNoteOrRenoteActivity(data: Option, note: MiNote, user: MiUser) {
 		if (data.localOnly) return null;
 
 		const content = this.isRenote(data) && !this.isQuote(data)
 			? this.apRendererService.renderAnnounce(data.renote.uri ? data.renote.uri : `${this.config.url}/notes/${data.renote.id}`, note)
-			: this.apRendererService.renderCreate(await this.apRendererService.renderNote(note, false), note);
+			: this.apRendererService.renderCreate(await this.apRendererService.renderNote(note, user, false), note);
 
 		return this.apRendererService.addContext(content);
 	}
@@ -1171,5 +1151,30 @@ export class NoteCreateService implements OnApplicationShutdown {
 	@bindThis
 	public async onApplicationShutdown(signal?: string | undefined): Promise<void> {
 		await this.dispose();
+	}
+
+	@bindThis
+	public async checkQuotePermissions(data: Option, user: MiUser): Promise<void> {
+		// Not a quote
+		if (!this.isRenote(data) || !this.isQuote(data)) return;
+
+		// User cannot quote
+		if (user.rejectQuotes) {
+			if (user.host == null) {
+				throw new IdentifiableError('1c0ea108-d1e3-4e8e-aa3f-4d2487626153', 'QUOTE_DISABLED_FOR_USER');
+			} else {
+				(data as Option).renote = null;
+				(data.processErrors ??= []).push('quoteUnavailable');
+			}
+		}
+
+		// Instance cannot quote
+		if (user.host) {
+			const instance = await this.federatedInstanceService.fetch(user.host);
+			if (instance?.rejectQuotes) {
+				(data as Option).renote = null;
+				(data.processErrors ??= []).push('quoteUnavailable');
+			}
+		}
 	}
 }

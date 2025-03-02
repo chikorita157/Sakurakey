@@ -6,18 +6,19 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { In } from 'typeorm';
 import { DI } from '@/di-symbols.js';
-import type { Config } from '@/config.js';
+import { type Config, FulltextSearchProvider } from '@/config.js';
 import { bindThis } from '@/decorators.js';
 import { LoggerService } from '@/core/LoggerService.js';
 import { MiNote } from '@/models/Note.js';
-import { MiUser } from '@/models/_.js';
 import type { NotesRepository } from '@/models/_.js';
+import { MiUser } from '@/models/_.js';
 import { sqlLikeEscape } from '@/misc/sql-like-escape.js';
 import { isUserRelated } from '@/misc/is-user-related.js';
 import { CacheService } from '@/core/CacheService.js';
 import { QueryService } from '@/core/QueryService.js';
 import { IdService } from '@/core/IdService.js';
 import type Logger from '@/logger.js';
+import { LoggerService } from '@/core/LoggerService.js';
 import type { Index, MeiliSearch } from 'meilisearch';
 import { MetaService } from '@/core/MetaService.js';
 import { UtilityService } from '@/core/UtilityService.js';
@@ -33,11 +34,80 @@ type Q =
 	{ op: '<', k: K, v: number } |
 	{ op: '>=', k: K, v: number } |
 	{ op: '<=', k: K, v: number } |
-	{ op: 'is null', k: K} |
-	{ op: 'is not null', k: K} |
+	{ op: 'is null', k: K } |
+	{ op: 'is not null', k: K } |
 	{ op: 'and', qs: Q[] } |
 	{ op: 'or', qs: Q[] } |
 	{ op: 'not', q: Q };
+
+const fileTypes = {
+	image: [
+		'image/webp',
+		'image/png',
+		'image/jpeg',
+		'image/avif',
+		'image/apng',
+		'image/gif',
+	],
+	video: [
+		'video/mp4',
+		'video/webm',
+		'video/mpeg',
+		'video/x-m4v',
+	],
+	audio: [
+		'audio/mpeg',
+		'audio/flac',
+		'audio/wav',
+		'audio/aac',
+		'audio/webm',
+		'audio/opus',
+		'audio/ogg',
+		'audio/x-m4a',
+		'audio/mod',
+		'audio/s3m',
+		'audio/xm',
+		'audio/it',
+		'audio/x-mod',
+		'audio/x-s3m',
+		'audio/x-xm',
+		'audio/x-it',
+	],
+	// Keep in sync with frontend-shared/js/const.ts
+	module: [
+		'audio/mod',
+		'audio/x-mod',
+		'audio/s3m',
+		'audio/x-s3m',
+		'audio/xm',
+		'audio/x-xm',
+		'audio/it',
+		'audio/x-it',
+	],
+	flash: [
+		'application/x-shockwave-flash',
+		'application/vnd.adobe.flash.movie',
+	],
+};
+
+// Make sure to regenerate misskey-js and check search.note.vue after changing these
+export const fileTypeCategories = ['image', 'video', 'audio', 'module', 'flash', null] as const;
+export type FileTypeCategory = typeof fileTypeCategories[number];
+
+export type SearchOpts = {
+	userId?: MiNote['userId'] | null;
+	channelId?: MiNote['channelId'] | null;
+	host?: string | null;
+	filetype?: FileTypeCategory;
+	order?: string | null;
+	disableMeili?: boolean | null;
+};
+
+export type SearchPagination = {
+	untilId?: MiNote['id'];
+	sinceId?: MiNote['id'];
+	limit: number;
+};
 
 function compileValue(value: V): string {
 	if (typeof value === 'string') {
@@ -70,9 +140,10 @@ function compileQuery(q: Q): string {
 @Injectable()
 export class SearchService {
 	private readonly meilisearchIndexScope: 'local' | 'global' | string[] = 'local';
-	private meilisearchNoteIndex: Index | null = null;
 	private elasticsearchNoteIndex: string | null = null;
 	private logger: Logger;
+	private readonly meilisearchNoteIndex: Index | null = null;
+	private readonly provider: FulltextSearchProvider;
 
 	constructor(
 		@Inject(DI.config)
@@ -174,27 +245,29 @@ export class SearchService {
 				this.logger.error('Error while checking if index exists', error);
 			});
 		}
+
+		this.provider = config.fulltextSearch?.provider ?? 'sqlLike';
+		this.loggerService.getLogger('SearchService').info(`-- Provider: ${this.provider}`);
 	}
 
 	@bindThis
 	public async indexNote(note: MiNote): Promise<void> {
+		if (!this.meilisearch) return;
 		if (note.text == null && note.cw == null) return;
 		if (!['public'].includes(note.visibility)) return;
 
-		if (this.meilisearch) {
-			switch (this.meilisearchIndexScope) {
-				case 'global':
-					break;
+		switch (this.meilisearchIndexScope) {
+			case 'global':
+				break;
 
-				case 'local':
-					if (note.userHost == null) break;
-					return;
+			case 'local':
+				if (note.userHost == null) break;
+				return;
 
-				default: {
-					if (note.userHost == null) break;
-					if (this.meilisearchIndexScope.includes(note.userHost)) break;
-					return;
-				}
+			default: {
+				if (note.userHost == null) break;
+				if (this.meilisearchIndexScope.includes(note.userHost)) break;
+				return;
 			}
 
 			await this.meilisearchNoteIndex?.addDocuments([{
@@ -228,14 +301,52 @@ export class SearchService {
 				console.error(error);
 			});
 		}
+
+		await this.meilisearchNoteIndex?.addDocuments([{
+			id: note.id,
+			createdAt: this.idService.parse(note.id).date.getTime(),
+			userId: note.userId,
+			userHost: note.userHost,
+			channelId: note.channelId,
+			cw: note.cw,
+			text: note.text,
+			tags: note.tags,
+			attachedFileTypes: note.attachedFileTypes,
+		}], {
+			primaryKey: 'id',
+		});
 	}
 
 	@bindThis
 	public async unindexNote(note: MiNote): Promise<void> {
 		if (!['public'].includes(note.visibility)) return;
 
-		if (this.meilisearch) {
-			this.meilisearchNoteIndex!.deleteDocument(note.id);
+		await this.meilisearchNoteIndex?.deleteDocument(note.id);
+	}
+
+	@bindThis
+	public async searchNote(
+		q: string,
+		me: MiUser | null,
+		opts: SearchOpts,
+		pagination: SearchPagination,
+	): Promise<MiNote[]> {
+		switch (this.provider) {
+			case 'sqlLike':
+			case 'sqlPgroonga':
+			case 'sqlTsvector': {
+				// ほとんど内容に差がないのでsqlLikeとsqlPgroongaを同じ処理にしている.
+				// 今後の拡張で差が出る用であれば関数を分ける.
+				return this.searchNoteByLike(q, me, opts, pagination);
+			}
+			case 'meilisearch': {
+				return this.searchNoteByMeiliSearch(q, me, opts, pagination);
+			}
+			default: {
+				// eslint-disable-next-line @typescript-eslint/no-unused-vars
+				const typeCheck: never = this.provider;
+				return [];
+			}
 		}
 	}
 
@@ -307,18 +418,29 @@ export class SearchService {
 					] });
 				}
 			}
-			const res = await this.meilisearchNoteIndex!.search(q, {
-				sort: [`createdAt:${opts.order ? opts.order : 'desc'}`],
-				matchingStrategy: 'all',
-				attributesToRetrieve: ['id', 'createdAt'],
-				filter: compileQuery(filter),
-				limit: pagination.limit,
-			});
-			if (res.hits.length === 0) return [];
-			const [
-				userIdsWhoMeMuting,
-				userIdsWhoBlockingMe,
-			] = me ? await Promise.all([
+		}
+
+		if (opts.filetype) {
+			const filters = fileTypes[opts.filetype].map(mime => ({ op: '=' as const, k: 'attachedFileTypes', v: mime }));
+			filter.qs.push({ op: 'or', qs: filters });
+		}
+
+		const res = await this.meilisearchNoteIndex.search(q, {
+			sort: [`createdAt:${opts.order ? opts.order : 'desc'}`],
+			matchingStrategy: 'all',
+			attributesToRetrieve: ['id', 'createdAt'],
+			filter: compileQuery(filter),
+			limit: pagination.limit,
+		});
+		if (res.hits.length === 0) {
+			return [];
+		}
+
+		const [
+			userIdsWhoMeMuting,
+			userIdsWhoBlockingMe,
+		] = me
+			? await Promise.all([
 				this.cacheService.userMutingsCache.fetch(me.id),
 				this.cacheService.userBlockedCache.fetch(me.id),
 			]) : [new Set<string>(), new Set<string>()];

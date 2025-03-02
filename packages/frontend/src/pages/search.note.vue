@@ -13,22 +13,28 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<template #header>{{ i18n.ts.options }}</template>
 
 			<div class="_gaps_m">
-				<MkRadios v-model="hostSelect">
-					<template #label>{{ i18n.ts.host }}</template>
-					<option value="all" default>{{ i18n.ts.all }}</option>
-					<option value="local">{{ i18n.ts.local }}</option>
-					<option v-if="noteSearchableScope === 'global'" value="specified">{{ i18n.ts.specifyHost }}</option>
-				</MkRadios>
-				<MkInput v-if="noteSearchableScope === 'global'" v-model="hostInput" :disabled="hostSelect !== 'specified'" :large="true" type="search">
-					<template #prefix><i class="ti ti-server"></i></template>
-				</MkInput>
-				<MkSwitch v-model="order">Sort by newest to oldest</MkSwitch>
+				<template v-if="instance.federation !== 'none'">
+					<MkRadios v-model="hostSelect">
+						<template #label>{{ i18n.ts.host }}</template>
+						<option value="all" default>{{ i18n.ts.all }}</option>
+						<option value="local">{{ i18n.ts.local }}</option>
+						<option v-if="noteSearchableScope === 'global'" value="specified">{{ i18n.ts.specifyHost }}</option>
+					</MkRadios>
+					<MkInput v-if="noteSearchableScope === 'global'" v-model="hostInput" :disabled="hostSelect !== 'specified'" :large="true" type="search">
+						<template #prefix><i class="ti ti-server"></i></template>
+					</MkInput>
+				</template>
+
+				<MkSwitch v-model="order">{{ i18n.ts._noteSearch.newestToOldest }}</MkSwitch>
+
 				<MkSelect v-model="filetype" small>
-					<template #label>File Type</template>
-					<option :value="null">None</option>
-					<option value="image">Images</option>
-					<option value="video">Videos</option>
-					<option value="audio">Audio</option>
+					<template #label>{{ i18n.ts._noteSearch.fileType }}</template>
+					<option :value="null">{{ i18n.ts._noteSearch._fileType.none }}</option>
+					<option value="image">{{ i18n.ts._noteSearch._fileType.image }}</option>
+					<option value="video">{{ i18n.ts._noteSearch._fileType.video }}</option>
+					<option value="audio">{{ i18n.ts._noteSearch._fileType.audio }}</option>
+					<option value="module">{{ i18n.ts._noteSearch._fileType.module }}</option>
+					<option value="flash">{{ i18n.ts._noteSearch._fileType.flash }}</option>
 				</MkSelect>
 
 				<MkFolder :defaultOpen="true">
@@ -97,7 +103,7 @@ const notePagination = ref<Paging>();
 const user = ref<UserDetailed | null>(null);
 const hostInput = ref(toRef(props, 'host').value);
 const order = ref(false);
-const filetype = ref(null);
+const filetype = ref<'image' | 'video' | 'audio' | 'module' | 'flash' | null>(null);
 
 const noteSearchableScope = instance.noteSearchableScope ?? 'local';
 
@@ -114,7 +120,7 @@ setHostSelectWithInput(hostInput.value, undefined);
 watch(hostInput, setHostSelectWithInput);
 
 const searchHost = computed(() => {
-	if (hostSelect.value === 'local') return '.';
+	if (hostSelect.value === 'local' || instance.federation === 'none') return '.';
 	if (hostSelect.value === 'specified') return hostInput.value;
 	return null;
 });

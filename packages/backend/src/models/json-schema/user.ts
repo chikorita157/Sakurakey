@@ -134,6 +134,14 @@ export const packedUserLiteSchema = {
 			type: 'boolean',
 			nullable: false, optional: false,
 		},
+		mandatoryCW: {
+			type: 'string',
+			nullable: true, optional: false,
+		},
+		rejectQuotes: {
+			type: 'boolean',
+			nullable: false, optional: true,
+		},
 		isBot: {
 			type: 'boolean',
 			nullable: false, optional: true,
@@ -752,6 +760,15 @@ export const packedMeDetailedOnlySchema = {
 			},
 		},
 		//#endregion
+		defaultCW: {
+			type: 'string',
+			nullable: true, optional: false,
+		},
+		defaultCWPriority: {
+			type: 'string',
+			enum: ['default', 'parent', 'defaultParent', 'parentDefault'],
+			nullable: false, optional: false,
+		},
 	},
 } as const;
 

@@ -8,14 +8,14 @@ import * as Redis from 'ioredis';
 import { DataSource } from 'typeorm';
 import { MeiliSearch } from 'meilisearch';
 import { Client as ElasticSearch } from '@elastic/elasticsearch';
+import { MiMeta } from '@/models/Meta.js';
 import { DI } from './di-symbols.js';
 import { Config, loadConfig } from './config.js';
 import { createPostgresDataSource } from './postgres.js';
 import { RepositoryModule } from './models/RepositoryModule.js';
 import { allSettled } from './misc/promise-tracker.js';
-import type { Provider, OnApplicationShutdown } from '@nestjs/common';
-import { MiMeta } from '@/models/Meta.js';
 import { GlobalEvents } from './core/GlobalEventService.js';
+import type { Provider, OnApplicationShutdown } from '@nestjs/common';
 
 const $config: Provider = {
 	provide: DI.config,
@@ -34,7 +34,11 @@ const $db: Provider = {
 const $meilisearch: Provider = {
 	provide: DI.meilisearch,
 	useFactory: (config: Config) => {
-		if (config.meilisearch) {
+		if (config.fulltextSearch?.provider === 'meilisearch') {
+			if (!config.meilisearch) {
+				throw new Error('MeiliSearch is enabled but no configuration is provided');
+			}
+
 			return new MeiliSearch({
 				host: `${config.meilisearch.ssl ? 'https' : 'http'}://${config.meilisearch.host}:${config.meilisearch.port}`,
 				apiKey: config.meilisearch.apiKey,
@@ -113,6 +117,14 @@ const $redisForReactions: Provider = {
 	inject: [DI.config],
 };
 
+const $redisForRateLimit: Provider = {
+	provide: DI.redisForRateLimit,
+	useFactory: (config: Config) => {
+		return new Redis.Redis(config.redisForRateLimit);
+	},
+	inject: [DI.config],
+};
+
 const $meta: Provider = {
 	provide: DI.meta,
 	useFactory: async (db: DataSource, redisForSub: Redis.Redis) => {
@@ -173,8 +185,8 @@ const $meta: Provider = {
 @Global()
 @Module({
 	imports: [RepositoryModule],
-	providers: [$config, $db, $meta, $meilisearch, $elasticsearch, $redis, $redisForPub, $redisForSub, $redisForTimelines, $redisForReactions],
-	exports: [$config, $db, $meta, $meilisearch, $elasticsearch, $redis, $redisForPub, $redisForSub, $redisForTimelines, $redisForReactions, RepositoryModule],
+	providers: [$config, $db, $meta, $meilisearch, $elasticsearch, $redis, $redisForPub, $redisForSub, $redisForTimelines, $redisForReactions, $redisForRateLimit],
+	exports: [$config, $db, $meta, $meilisearch, $elasticsearch, $redis, $redisForPub, $redisForSub, $redisForTimelines, $redisForReactions, $redisForRateLimit, RepositoryModule],
 })
 export class GlobalModule implements OnApplicationShutdown {
 	constructor(
@@ -184,6 +196,7 @@ export class GlobalModule implements OnApplicationShutdown {
 		@Inject(DI.redisForSub) private redisForSub: Redis.Redis,
 		@Inject(DI.redisForTimelines) private redisForTimelines: Redis.Redis,
 		@Inject(DI.redisForReactions) private redisForReactions: Redis.Redis,
+		@Inject(DI.redisForRateLimit) private redisForRateLimit: Redis.Redis,
 	) { }
 
 	public async dispose(): Promise<void> {
@@ -197,6 +210,7 @@ export class GlobalModule implements OnApplicationShutdown {
 			this.redisForSub.disconnect(),
 			this.redisForTimelines.disconnect(),
 			this.redisForReactions.disconnect(),
+			this.redisForRateLimit.disconnect(),
 		]);
 	}
 

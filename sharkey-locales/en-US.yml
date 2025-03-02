@@ -17,6 +17,7 @@ emailDestination: "Destination address"
 date: "Date"
 renote: "Boost"
 unrenote: "Remove boost"
+renoteShift: "Boost (hold Shift for visibility menu)"
 renoted: "Boosted."
 quoted: "Quoted."
 rmboost: "Unboosted."
@@ -40,6 +41,11 @@ continueOnRemote: "Continue on remote instance"
 chooseServerOnMisskeyHub: "Choose a instance from Misskey Hub"
 mediaSilenceThisInstance: "Silence media from this instance"
 rejectReports: "Reject reports from this instance"
+rejectQuotesInstance: "Strip quote posts from this instance"
+rejectQuotesRemoteUser: "Strip quote posts from this user"
+rejectQuotesLocalUser: "Block quote posts from this user"
+rejectQuotesConfirm: "Are you sure you wish to strip quote posts?"
+allowQuotesConfirm: "Are you sure you wish to allow quote posts?"
 silencedInstancesDescription: "List the host names of the instances that you want to silence, separated by a new line. All accounts belonging to the listed instances will be treated as silenced, and can only make follow requests, and cannot mention local accounts if not followed. This will not affect the blocked instances."
 mediaSilencedInstances: "Media-silenced instances"
 mediaSilencedInstancesDescription: "List the host names of the instances that you want to media-silence, separated by a new line. All accounts belonging to the listed instances will be treated as sensitive, and can't use custom emojis. This will not affect the blocked instances."
@@ -50,6 +56,10 @@ mediaSilencedByBase: "This host's media is silenced implicitly because a base do
 driveSearchbarPlaceholder: "Search drive"
 fileNotSelected: "No file selected"
 background: "Background"
+inputNewDescription: "Enter new alt text"
+describeFile: "Add alt text"
+enterFileDescription: "Enter alt text"
+caption: "Alt text"
 antennaUsersDescription: "List one username per line. Use \"*@instance.com\" to specify all users of an instance"
 aboutMisskey: "About Sharkey"
 expandAllCws: "Show content for all replies"
@@ -270,6 +280,7 @@ _profile:
   changeBackground: "Change background"
   updateBackground: "Update background"
   removeBackground: "Remove background"
+  listenbrainz: "ListenBrainz username"
 _timelines:
   bubble: "Bubble"
 _pages:
@@ -301,10 +312,14 @@ _abuseReport:
         webhook: "Send a notification to the SystemWebhook when an abuse report is received or resolved."
 _moderationLogTypes:
   approve: "Approved"
+  decline: "Declined"
+  setMandatoryCW: "Set content warning for user"
   setRemoteInstanceNSFW: "Set remote instance as NSFW"
   unsetRemoteInstanceNSFW: "Set remote instance as NSFW"
   rejectRemoteInstanceReports: "Rejected reports from remote instance"
   acceptRemoteInstanceReports: "Accepted reports from remote instance"
+  rejectQuotesUser: "Blocked/Stripped quote posts from user"
+  allowQuotesUser: "Allowed quote posts from user"
 _mfm:
   uncommonFeature: "This is not a widespread feature, it may not display properly on most other fedi software, including other Misskey forks"
   intro: "MFM is a markup language used on Misskey, Sharkey, Firefish, Akkoma, and more that can be used in many places. Here you can view a list of all available MFM syntax."
@@ -383,6 +398,8 @@ _mfm:
   fadeDescription: 'Fade text in and out.'
   background: "Background color"
   backgroundDescription: "Change the background color of text."
+  border: "Border"
+  borderDescription: "Draw a border around the content."
   plain: "Plain"
   plainDescription: "Deactivates the effects of all MFM contained within this MFM effect."
 _animatedMFM:
@@ -428,5 +445,50 @@ postOn: "Post on"
 scheduledNotes: "Scheduled Notes"
 
 _permissions:
+  "write:admin:approve-user": "Approve new users"
+  "write:admin:decline-user": "Decline new users"
+  "write:admin:nsfw-user": "Mark users as NSFW"
+  "write:admin:unnsfw-user": "Mark users an not NSFW"
+  "write:admin:cw-user": "Apply mandatory CW on users"
+  "write:admin:silence-user": "Silence users"
+  "write:admin:unsilence-user": "Un-silence users"
+  "write:admin:reject-quotes": "Allow/Prohibit quote posts from a user"
   "read:notes-schedule": "View your list of scheduled notes"
   "write:notes-schedule": "Compose or delete scheduled notes"
+
+robotsTxt: "Custom robots.txt"
+robotsTxtDescription: "Adding entries here will override the default robots.txt packaged with Sharkey."
+
+defaultCW: "Default content warning for new posts"
+defaultCWDescription: "The value here will be auto-filled as the content warning for all new posts and replies."
+defaultCWPriority: "Automatic CW priority"
+defaultCWPriorityDescription: "Select preferred action when default CW and keep CW settings are both enabled at the same time."
+_defaultCWPriority:
+  default: "Use Default (use the default CW, ignoring the inherited CW)"
+  parent: "Use Parent (use the inherited CW, ignoring the default CW)"
+  defaultParent: "Use Default, then Parent (use the default CW, and append the inherited CW)"
+  parentDefault: "Use Parent, then Default (use the inherited CW, and append the default CW)"
+
+genKeys: "Generate Keys"
+_genKeysDialog:
+  text: "Are you sure that you want to generate new keys? This will stop push notifications for all users who have already enabled them."
+  title: "Generate new keys"
+
+_noteSearch:
+  newestToOldest: "Sort by newest to oldest"
+  fileType: "File Type"
+  _fileType:
+    none: "None"
+    image: "Images"
+    video: "Videos"
+    audio: "Audio"
+    module: "Module"
+    flash: "Flash"
+
+id: "ID"
+
+mandatoryCW: "Force content warning"
+mandatoryCWDescription: "Applies a content warning to all posts created by this user. If the post already has a CW, then this is appended to the end."
+
+_processErrors:
+  quoteUnavailable: "Unable to process quote. This post may be missing context."

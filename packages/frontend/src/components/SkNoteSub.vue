@@ -19,11 +19,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<div :class="$style.body">
 			<SkNoteHeader :class="$style.header" :note="note" :classic="true" :mini="true"/>
 			<div :class="$style.content">
-				<p v-if="note.cw != null" :class="$style.cw">
-					<Mfm v-if="note.cw != ''" style="margin-right: 8px;" :text="note.cw" :isBlock="true" :author="note.user" :nyaize="'respect'"/>
+				<p v-if="mergedCW != null" :class="$style.cw">
+					<Mfm v-if="mergedCW != ''" style="margin-right: 8px;" :text="mergedCW" :isBlock="true" :author="note.user" :nyaize="'respect'"/>
 					<MkCwButton v-model="showContent" :text="note.text" :files="note.files" :poll="note.poll"/>
 				</p>
-				<div v-show="note.cw == null || showContent">
+				<div v-show="mergedCW == null || showContent">
 					<MkSubNoteContent :class="$style.text" :note="note" :translating="translating" :translation="translation" :expandAllCws="props.expandAllCws"/>
 				</div>
 			</div>
@@ -36,16 +36,17 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<button
 					v-if="canRenote"
 					ref="renoteButton"
+					v-tooltip="renoteTooltip"
 					class="_button"
 					:class="$style.noteFooterButton"
 					:style="renoted ? 'color: var(--MI_THEME-accent) !important;' : ''"
-					@mousedown="renoted ? undoRenote() : boostVisibility()"
+					@mousedown="renoted ? undoRenote() : boostVisibility($event.shiftKey)"
 				>
 					<i class="ph-rocket-launch ph-bold ph-lg"></i>
 					<p v-if="note.renoteCount > 0" :class="$style.noteFooterButtonCount">{{ note.renoteCount }}</p>
 				</button>
 				<button
-					v-if="canRenote"
+					v-if="canRenote && !$i?.rejectQuotes"
 					ref="quoteButton"
 					class="_button"
 					:class="$style.noteFooterButton"
@@ -93,6 +94,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 <script lang="ts" setup>
 import { computed, ref, shallowRef, watch } from 'vue';
 import * as Misskey from 'misskey-js';
+import { computeMergedCw } from '@@/js/compute-merged-cw.js';
 import SkNoteHeader from '@/components/SkNoteHeader.vue';
 import MkReactionsViewer from '@/components/MkReactionsViewer.vue';
 import MkSubNoteContent from '@/components/MkSubNoteContent.vue';
@@ -114,7 +116,7 @@ import { reactionPicker } from '@/scripts/reaction-picker.js';
 import { claimAchievement } from '@/scripts/achievements.js';
 import { getNoteMenu } from '@/scripts/get-note-menu.js';
 import { useNoteCapture } from '@/scripts/use-note-capture.js';
-import { boostMenuItems, type Visibility } from '@/scripts/boost-quote.js';
+import { boostMenuItems, type Visibility, computeRenoteTooltip } from '@/scripts/boost-quote.js';
 
 const canRenote = computed(() => ['public', 'home'].includes(props.note.visibility) || props.note.userId === $i.id);
 const hideLine = computed(() => { return props.detail ? true : false; });
@@ -149,9 +151,13 @@ const quoteButton = shallowRef<HTMLElement>();
 const menuButton = shallowRef<HTMLElement>();
 const likeButton = shallowRef<HTMLElement>();
 
+const renoteTooltip = computeRenoteTooltip(renoted);
+
 let appearNote = computed(() => isRenote ? props.note.renote as Misskey.entities.Note : props.note);
 const defaultLike = computed(() => defaultStore.state.like ? defaultStore.state.like : null);
 const replies = ref<Misskey.entities.Note[]>([]);
+
+const mergedCW = computed(() => computeMergedCw(appearNote.value));
 
 const isRenote = (
 	props.note.renote != null &&
@@ -299,8 +305,8 @@ watch(() => props.expandAllCws, (expandAllCws) => {
 	if (expandAllCws !== showContent.value) showContent.value = expandAllCws;
 });
 
-function boostVisibility() {
-	if (!defaultStore.state.showVisibilitySelectorOnBoost) {
+function boostVisibility(forceMenu: boolean = false) {
+	if (!defaultStore.state.showVisibilitySelectorOnBoost && !forceMenu) {
 		renote(defaultStore.state.visibilityOnBoost);
 	} else {
 		os.popupMenu(boostMenuItems(appearNote, renote), renoteButton.value);

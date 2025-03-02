@@ -339,6 +339,24 @@ export class MiUser {
 	})
 	public enableRss: boolean;
 
+	/**
+	 * Specifies a Content Warning that should be forcibly applied to all notes by this user.
+	 * If null (default), then no Content Warning is applied.
+	 */
+	@Column('text', {
+		nullable: true,
+	})
+	public mandatoryCW: string | null;
+
+	/**
+	 * If true, quote posts from this user will be downgraded to normal posts.
+	 * The quote will be stripped and a process error will be generated.
+	 */
+	@Column('boolean', {
+		default: false,
+	})
+	public rejectQuotes: boolean;
+
 	constructor(data: Partial<MiUser>) {
 		if (data == null) return;
 

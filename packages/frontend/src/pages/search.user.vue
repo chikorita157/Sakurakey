@@ -9,7 +9,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<MkInput v-model="searchQuery" :large="true" :autofocus="true" type="search" @enter.prevent="search">
 			<template #prefix><i class="ti ti-search"></i></template>
 		</MkInput>
-		<MkRadios v-model="searchOrigin" @update:modelValue="search()">
+		<MkRadios v-if="instance.federation !== 'none'" v-model="searchOrigin" @update:modelValue="search()">
 			<option value="combined">{{ i18n.ts.all }}</option>
 			<option value="local">{{ i18n.ts.local }}</option>
 			<option value="remote">{{ i18n.ts.remote }}</option>
@@ -33,6 +33,7 @@ import MkInput from '@/components/MkInput.vue';
 import MkRadios from '@/components/MkRadios.vue';
 import MkButton from '@/components/MkButton.vue';
 import { i18n } from '@/i18n.js';
+import { instance } from '@/instance.js';
 import * as os from '@/os.js';
 import MkFoldableSection from '@/components/MkFoldableSection.vue';
 import { misskeyApi } from '@/scripts/misskey-api.js';
@@ -84,33 +85,26 @@ async function search() {
 	}
 	//#endregion
 
-	if (query.length > 1 && !query.includes(' ')) {
-		if (query.startsWith('@')) {
-			const confirm = await os.confirm({
-				type: 'info',
-				text: i18n.ts.lookupConfirm,
-			});
-			if (!confirm.canceled) {
-				router.push(`/${query}`);
-				return;
-			}
-		}
-
-		if (query.startsWith('#')) {
-			const confirm = await os.confirm({
-				type: 'info',
-				text: i18n.ts.openTagPageConfirm,
-			});
-			if (!confirm.canceled) {
-				router.push(`/user-tags/${encodeURIComponent(query.substring(1))}`);
-				return;
-			}
+	if (query.length > 1 && !query.includes(' ') && query.startsWith('#')) {
+		const confirm = await os.confirm({
+			type: 'info',
+			text: i18n.ts.openTagPageConfirm,
+		});
+		if (!confirm.canceled) {
+			router.push(`/user-tags/${encodeURIComponent(query.substring(1))}`);
+			return;
 		}
 	}
 
 	if (query.match(/^@[a-z0-9_.-]+@[a-z0-9_.-]+$/i)) {
-		router.push(`/${query}`);
-		return;
+		const confirm = await os.confirm({
+			type: 'info',
+			text: i18n.ts.lookupConfirm,
+		});
+		if (!confirm.canceled) {
+			router.push(`/${query}`);
+			return;
+		}
 	}
 
 	userPagination.value = {
@@ -118,7 +112,7 @@ async function search() {
 		limit: 10,
 		params: {
 			query: query,
-			origin: searchOrigin.value,
+			origin: instance.federation === 'none' ? 'local' : searchOrigin.value,
 		},
 	};
 

@@ -53,7 +53,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 					</MkKeyValue>
 				</div>
 
-				<MkTextarea v-model="moderationNote" manualSave>
+				<MkTextarea v-model="moderationNote" manualSave @update:modelValue="onModerationNoteChanged">
 					<template #label>{{ i18n.ts.moderationNote }}</template>
 					<template #caption>{{ i18n.ts.moderationNoteDescription }}</template>
 				</MkTextarea>
@@ -81,7 +81,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<div class="_gaps">
 						<MkSwitch v-model="silenced" @update:modelValue="toggleSilence">{{ i18n.ts.silence }}</MkSwitch>
 						<MkSwitch v-if="!isSystem" v-model="suspended" @update:modelValue="toggleSuspend">{{ i18n.ts.suspend }}</MkSwitch>
+						<MkSwitch v-model="rejectQuotes" @update:modelValue="toggleRejectQuotes">{{ user.host == null ? i18n.ts.rejectQuotesLocalUser : i18n.ts.rejectQuotesRemoteUser }}</MkSwitch>
 						<MkSwitch v-model="markedAsNSFW" @update:modelValue="toggleNSFW">{{ i18n.ts.markAsNSFW }}</MkSwitch>
+
+						<MkInput v-model="mandatoryCW" type="text" manualSave @update:modelValue="onMandatoryCWChanged">
+							<template #label>{{ i18n.ts.mandatoryCW }}</template>
+							<template #caption>{{ i18n.ts.mandatoryCWDescription }}</template>
+						</MkInput>
 
 						<div>
 							<MkButton v-if="user.host == null && !isSystem" inline style="margin-right: 8px;" @click="resetPassword"><i class="ti ti-key"></i> {{ i18n.ts.resetPassword }}</MkButton>
@@ -222,6 +228,7 @@ import { i18n } from '@/i18n.js';
 import { iAmAdmin, $i, iAmModerator } from '@/account.js';
 import MkRolePreview from '@/components/MkRolePreview.vue';
 import MkPagination from '@/components/MkPagination.vue';
+import MkInput from '@/components/MkInput.vue';
 
 const props = withDefaults(defineProps<{
 	userId: string;
@@ -241,8 +248,10 @@ const moderator = ref(false);
 const silenced = ref(false);
 const approved = ref(false);
 const suspended = ref(false);
+const rejectQuotes = ref(false);
 const markedAsNSFW = ref(false);
 const moderationNote = ref('');
+const mandatoryCW = ref<string | null>(null);
 const isSystem = computed(() => info.value?.isSystem ?? false);
 const filesPagination = {
 	endpoint: 'admin/drive/files' as const,
@@ -280,17 +289,24 @@ function createFetcher() {
 		approved.value = info.value.approved;
 		markedAsNSFW.value = info.value.alwaysMarkNsfw;
 		suspended.value = info.value.isSuspended;
+		rejectQuotes.value = user.value.rejectQuotes ?? false;
 		moderationNote.value = info.value.moderationNote;
-
-		watch(moderationNote, async () => {
-			await misskeyApi('admin/update-user-note', { userId: user.value.id, text: moderationNote.value });
-			await refreshUser();
-		});
+		mandatoryCW.value = user.value.mandatoryCW;
 	});
 }
 
 function refreshUser() {
 	init.value = createFetcher();
+}
+
+async function onMandatoryCWChanged(value: string) {
+	await os.apiWithDialog('admin/cw-user', { userId: props.userId, cw: value });
+	refreshUser();
+}
+
+async function onModerationNoteChanged(value: string) {
+	await misskeyApi('admin/update-user-note', { userId: props.userId, text: value });
+	refreshUser();
 }
 
 async function updateRemoteUser() {
@@ -351,6 +367,22 @@ async function toggleSuspend(v) {
 		suspended.value = !v;
 	} else {
 		await misskeyApi(v ? 'admin/suspend-user' : 'admin/unsuspend-user', { userId: user.value.id });
+		await refreshUser();
+	}
+}
+
+async function toggleRejectQuotes(v: boolean): Promise<void> {
+	const confirm = await os.confirm({
+		type: 'warning',
+		text: v ? i18n.ts.rejectQuotesConfirm : i18n.ts.allowQuotesConfirm,
+	});
+	if (confirm.canceled) {
+		rejectQuotes.value = !v;
+	} else {
+		await misskeyApi('admin/reject-quotes', {
+			userId: props.userId,
+			rejectQuotes: v,
+		});
 		await refreshUser();
 	}
 }

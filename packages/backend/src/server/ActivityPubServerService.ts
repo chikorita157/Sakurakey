@@ -30,14 +30,14 @@ import type { MiNote } from '@/models/Note.js';
 import { QueryService } from '@/core/QueryService.js';
 import { UtilityService } from '@/core/UtilityService.js';
 import { UserEntityService } from '@/core/entities/UserEntityService.js';
+import type Logger from '@/logger.js';
+import { LoggerService } from '@/core/LoggerService.js';
 import { bindThis } from '@/decorators.js';
 import { IActivity } from '@/core/activitypub/type.js';
 import { isQuote, isRenote } from '@/misc/is-renote.js';
 import * as Acct from '@/misc/acct.js';
 import type { FastifyInstance, FastifyRequest, FastifyReply, FastifyPluginOptions, FastifyBodyParser } from 'fastify';
 import type { FindOptionsWhere } from 'typeorm';
-import type Logger from '@/logger.js';
-import { LoggerService } from '@/core/LoggerService.js';
 
 const ACTIVITY_JSON = 'application/activity+json; charset=utf-8';
 const LD_JSON = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"; charset=utf-8';
@@ -103,15 +103,16 @@ export class ActivityPubServerService {
 	/**
 	 * Pack Create<Note> or Announce Activity
 	 * @param note Note
+	 * @param author Author of the note
 	 */
 	@bindThis
-	private async packActivity(note: MiNote): Promise<any> {
+	private async packActivity(note: MiNote, author: MiUser): Promise<any> {
 		if (isRenote(note) && !isQuote(note)) {
 			const renote = await this.notesRepository.findOneByOrFail({ id: note.renoteId });
 			return this.apRendererService.renderAnnounce(renote.uri ? renote.uri : `${this.config.url}/notes/${renote.id}`, note);
 		}
 
-		return this.apRendererService.renderCreate(await this.apRendererService.renderNote(note, false), note);
+		return this.apRendererService.renderCreate(await this.apRendererService.renderNote(note, author, false), note);
 	}
 
 	@bindThis
@@ -506,7 +507,7 @@ export class ActivityPubServerService {
 			this.notesRepository.findOneByOrFail({ id: pining.noteId }))))
 			.filter(note => !note.localOnly && ['public', 'home'].includes(note.visibility));
 
-		const renderedNotes = await Promise.all(pinnedNotes.map(note => this.apRendererService.renderNote(note)));
+		const renderedNotes = await Promise.all(pinnedNotes.map(note => this.apRendererService.renderNote(note, user)));
 
 		const rendered = this.apRendererService.renderOrderedCollection(
 			`${this.config.url}/users/${userId}/collections/featured`,
@@ -579,7 +580,7 @@ export class ActivityPubServerService {
 
 			if (sinceId) notes.reverse();
 
-			const activities = await Promise.all(notes.map(note => this.packActivity(note)));
+			const activities = await Promise.all(notes.map(note => this.packActivity(note, user)));
 			const rendered = this.apRendererService.renderOrderedCollectionPage(
 				`${partOf}?${url.query({
 					page: 'true',
@@ -653,8 +654,8 @@ export class ActivityPubServerService {
 			},
 			deriveConstraint(request: IncomingMessage) {
 				const accepted = accepts(request).type(['html', ACTIVITY_JSON, LD_JSON]);
-				const isAp = typeof accepted === 'string' && !accepted.match(/html/);
-				return isAp ? 'ap' : 'html';
+				if (accepted === false) return null;
+				return accepted !== 'html' ? 'ap' : 'html';
 			},
 		});
 
@@ -723,7 +724,9 @@ export class ActivityPubServerService {
 
 			if (!this.config.checkActivityPubGetSignature) reply.header('Cache-Control', 'public, max-age=180');
 			this.setResponseType(request, reply);
-			return this.apRendererService.addContext(await this.apRendererService.renderNote(note, false));
+
+			const author = await this.usersRepository.findOneByOrFail({ id: note.userId });
+			return this.apRendererService.addContext(await this.apRendererService.renderNote(note, author, false));
 		});
 
 		// note activity
@@ -746,7 +749,9 @@ export class ActivityPubServerService {
 
 			if (!this.config.checkActivityPubGetSignature) reply.header('Cache-Control', 'public, max-age=180');
 			this.setResponseType(request, reply);
-			return (this.apRendererService.addContext(await this.packActivity(note)));
+
+			const author = await this.usersRepository.findOneByOrFail({ id: note.userId });
+			return (this.apRendererService.addContext(await this.packActivity(note, author)));
 		});
 
 		// outbox

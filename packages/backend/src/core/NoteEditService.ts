@@ -140,6 +140,7 @@ type Option = {
 	app?: MiApp | null;
 	updatedAt?: Date | null;
 	editcount?: boolean | null;
+	processErrors?: string[] | null;
 };
 
 @Injectable()
@@ -224,7 +225,7 @@ export class NoteEditService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	public async edit(user: {
+	public async edit(user: MiUser & {
 		id: MiUser['id'];
 		username: MiUser['username'];
 		host: MiUser['host'];
@@ -309,7 +310,7 @@ export class NoteEditService implements OnApplicationShutdown {
 
 		if (this.isRenote(data)) {
 			if (data.renote.id === oldnote.id) {
-				throw new Error("A note can't renote itself");
+				throw new Error('A note can\'t renote itself');
 			}
 
 			switch (data.renote.visibility) {
@@ -336,6 +337,9 @@ export class NoteEditService implements OnApplicationShutdown {
 					throw new Error('Renote target is not public or home');
 			}
 		}
+
+		// Check quote permissions
+		await this.noteCreateService.checkQuotePermissions(data, user);
 
 		// Check blocking
 		if (this.isRenote(data) && !this.isQuote(data)) {
@@ -529,6 +533,7 @@ export class NoteEditService implements OnApplicationShutdown {
 
 			if (data.uri != null) note.uri = data.uri;
 			if (data.url != null) note.url = data.url;
+			if (data.processErrors !== undefined) note.processErrors = data.processErrors;
 
 			if (mentionedUsers.length > 0) {
 				note.mentions = mentionedUsers.map(u => u.id);
@@ -584,7 +589,7 @@ export class NoteEditService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	private async postNoteEdited(note: MiNote, oldNote: MiNote, user: {
+	private async postNoteEdited(note: MiNote, oldNote: MiNote, user: MiUser & {
 		id: MiUser['id'];
 		username: MiUser['username'];
 		host: MiUser['host'];
@@ -664,14 +669,7 @@ export class NoteEditService implements OnApplicationShutdown {
 
 			this.roleService.addNoteToRoleTimeline(noteObj);
 
-			this.webhookService.getActiveWebhooks().then(webhooks => {
-				webhooks = webhooks.filter(x => x.userId === user.id && x.on.includes('note'));
-				for (const webhook of webhooks) {
-					this.queueService.userWebhookDeliver(webhook, 'note', {
-						note: noteObj,
-					});
-				}
-			});
+			this.webhookService.enqueueUserWebhook(user.id, 'note', { note: noteObj });
 
 			const nm = new NotificationManager(this.mutingsRepository, this.notificationService, user, note);
 
@@ -700,12 +698,7 @@ export class NoteEditService implements OnApplicationShutdown {
 						nm.push(data.reply.userId, 'edited');
 						this.globalEventService.publishMainStream(data.reply.userId, 'edited', noteObj);
 
-						const webhooks = (await this.webhookService.getActiveWebhooks()).filter(x => x.userId === data.reply!.userId && x.on.includes('edited'));
-						for (const webhook of webhooks) {
-							this.queueService.userWebhookDeliver(webhook, 'edited', {
-								note: noteObj,
-							});
-						}
+						this.webhookService.enqueueUserWebhook(data.reply.userId, 'reply', { note: noteObj });
 					}
 				}
 			}
@@ -713,9 +706,9 @@ export class NoteEditService implements OnApplicationShutdown {
 			nm.notify();
 
 			//#region AP deliver
-			if (this.userEntityService.isLocalUser(user)) {
+			if (!data.localOnly && this.userEntityService.isLocalUser(user)) {
 				(async () => {
-					const noteActivity = await this.renderNoteOrRenoteActivity(data, note);
+					const noteActivity = await this.renderNoteOrRenoteActivity(data, note, user);
 					const dm = this.apDeliverManagerService.createDeliverManager(user, noteActivity);
 
 					// メンションされたリモートユーザーに配送
@@ -810,6 +803,7 @@ export class NoteEditService implements OnApplicationShutdown {
 			(note.files != null && note.files.length > 0);
 	}
 
+	// TODO why is this unused?
 	@bindThis
 	private async createMentionedEvents(mentionedUsers: MinimumUser[], note: MiNote, nm: NotificationManager) {
 		for (const u of mentionedUsers.filter(u => this.userEntityService.isLocalUser(u))) {
@@ -837,13 +831,7 @@ export class NoteEditService implements OnApplicationShutdown {
 			});
 
 			this.globalEventService.publishMainStream(u.id, 'edited', detailPackedNote);
-
-			const webhooks = (await this.webhookService.getActiveWebhooks()).filter(x => x.userId === u.id && x.on.includes('edited'));
-			for (const webhook of webhooks) {
-				this.queueService.userWebhookDeliver(webhook, 'edited', {
-					note: detailPackedNote,
-				});
-			}
+			this.webhookService.enqueueUserWebhook(u.id, 'edited', { note: detailPackedNote });
 
 			// Create notification
 			nm.push(u.id, 'edited');
@@ -851,14 +839,12 @@ export class NoteEditService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	private async renderNoteOrRenoteActivity(data: Option, note: MiNote) {
+	private async renderNoteOrRenoteActivity(data: Option, note: MiNote, user: MiUser) {
 		if (data.localOnly) return null;
-		const user = await this.usersRepository.findOneBy({ id: note.userId });
-		if (user == null) throw new Error('user not found');
 
 		const content = this.isRenote(data) && !this.isQuote(data)
 			? this.apRendererService.renderAnnounce(data.renote.uri ? data.renote.uri : `${this.config.url}/notes/${data.renote.id}`, note)
-			: this.apRendererService.renderUpdate(await this.apRendererService.renderUpNote(note, false), user);
+			: this.apRendererService.renderUpdate(await this.apRendererService.renderUpNote(note, user, false), user);
 
 		return this.apRendererService.addContext(content);
 	}

@@ -27,6 +27,7 @@ type RedisOptionsSource = Partial<RedisOptions> & {
 type Source = {
 	url?: string;
 	port?: number;
+	address?: string;
 	socket?: string;
 	chmodSocket?: string;
 	disableHsts?: boolean;
@@ -52,6 +53,10 @@ type Source = {
 	redisForJobQueue?: RedisOptionsSource;
 	redisForTimelines?: RedisOptionsSource;
 	redisForReactions?: RedisOptionsSource;
+	redisForRateLimit?: RedisOptionsSource;
+	fulltextSearch?: {
+		provider?: FulltextSearchProvider;
+	};
 	meilisearch?: {
 		host: string;
 		port: string;
@@ -127,11 +132,25 @@ type Source = {
 
 	pidFile: string;
 	filePermissionBits?: string;
+
+	logging?: {
+		sql?: {
+			disableQueryTruncation? : boolean,
+			enableQueryParamLogging? : boolean,
+		}
+	}
+
+	activityLogging?: {
+		enabled?: boolean;
+		preSave?: boolean;
+		maxAge?: number;
+	};
 };
 
 export type Config = {
 	url: string;
 	port: number;
+	address: string;
 	socket: string | undefined;
 	chmodSocket: string | undefined;
 	disableHsts: boolean | undefined;
@@ -152,6 +171,9 @@ export type Config = {
 		user: string;
 		pass: string;
 	}[] | undefined;
+	fulltextSearch?: {
+		provider?: FulltextSearchProvider;
+	};
 	meilisearch: {
 		host: string;
 		port: string;
@@ -197,6 +219,12 @@ export type Config = {
 	signToActivityPubGet: boolean;
 	attachLdSignatureForRelays: boolean;
 	checkActivityPubGetSignature: boolean | undefined;
+	logging?: {
+		sql?: {
+			disableQueryTruncation? : boolean,
+			enableQueryParamLogging? : boolean,
+		}
+	}
 
 	version: string;
 	publishTarballInsteadOfProvideRepositoryUrl: boolean;
@@ -222,6 +250,7 @@ export type Config = {
 	redisForJobQueue: RedisOptions & RedisOptionsSource;
 	redisForTimelines: RedisOptions & RedisOptionsSource;
 	redisForReactions: RedisOptions & RedisOptionsSource;
+	redisForRateLimit: RedisOptions & RedisOptionsSource;
 	sentryForBackend: { options: Partial<Sentry.NodeOptions>; enableNodeProfiling: boolean; } | undefined;
 	sentryForFrontend: { options: Partial<Sentry.NodeOptions> } | undefined;
 	perChannelMaxNoteCacheCount: number;
@@ -235,7 +264,15 @@ export type Config = {
 
 	pidFile: string;
 	filePermissionBits?: string;
+
+	activityLogging: {
+		enabled: boolean;
+		preSave: boolean;
+		maxAge: number;
+	};
 };
+
+export type FulltextSearchProvider = 'sqlLike' | 'sqlPgroonga' | 'meilisearch' | 'sqlTsvector';
 
 const _filename = fileURLToPath(import.meta.url);
 const _dirname = dirname(_filename);
@@ -306,6 +343,7 @@ export function loadConfig(): Config {
 		setupPassword: config.setupPassword,
 		url: url.origin,
 		port: config.port ?? parseInt(process.env.PORT ?? '3000', 10),
+		address: config.address ?? '0.0.0.0',
 		socket: config.socket,
 		chmodSocket: config.chmodSocket,
 		disableHsts: config.disableHsts,
@@ -320,6 +358,7 @@ export function loadConfig(): Config {
 		db: { ...config.db, db: dbDb, user: dbUser, pass: dbPass },
 		dbReplications: config.dbReplications,
 		dbSlaves: config.dbSlaves,
+		fulltextSearch: config.fulltextSearch,
 		meilisearch: config.meilisearch,
 		elasticsearch: config.elasticsearch,
 		redis,
@@ -327,6 +366,7 @@ export function loadConfig(): Config {
 		redisForJobQueue: config.redisForJobQueue ? convertRedisOptions(config.redisForJobQueue, host) : redis,
 		redisForTimelines: config.redisForTimelines ? convertRedisOptions(config.redisForTimelines, host) : redis,
 		redisForReactions: config.redisForReactions ? convertRedisOptions(config.redisForReactions, host) : redis,
+		redisForRateLimit: config.redisForRateLimit ? convertRedisOptions(config.redisForRateLimit, host) : redis,
 		sentryForBackend: config.sentryForBackend,
 		sentryForFrontend: config.sentryForFrontend,
 		id: config.id,
@@ -373,6 +413,12 @@ export function loadConfig(): Config {
 		import: config.import,
 		pidFile: config.pidFile,
 		filePermissionBits: config.filePermissionBits,
+		logging: config.logging,
+		activityLogging: {
+			enabled: config.activityLogging?.enabled ?? false,
+			preSave: config.activityLogging?.preSave ?? false,
+			maxAge: config.activityLogging?.maxAge ?? (1000 * 60 * 60 * 24 * 30),
+		},
 	};
 }
 
@@ -507,13 +553,14 @@ function applyEnvOverrides(config: Source) {
 
 	// these are all the settings that can be overridden
 
-	_apply_top([['url', 'port', 'socket', 'chmodSocket', 'disableHsts', 'id', 'dbReplications']]);
+	_apply_top([['url', 'port', 'address', 'socket', 'chmodSocket', 'disableHsts', 'id', 'dbReplications']]);
 	_apply_top(['db', ['host', 'port', 'db', 'user', 'pass', 'disableCache']]);
 	_apply_top(['dbSlaves', Array.from((config.dbSlaves ?? []).keys()), ['host', 'port', 'db', 'user', 'pass']]);
 	_apply_top([
-		['redis', 'redisForPubsub', 'redisForJobQueue', 'redisForTimelines', 'redisForReactions'],
+		['redis', 'redisForPubsub', 'redisForJobQueue', 'redisForTimelines', 'redisForReactions', 'redisForRateLimit'],
 		['host', 'port', 'username', 'pass', 'db', 'prefix'],
 	]);
+	_apply_top(['fulltextSearch', 'provider']);
 	_apply_top(['meilisearch', ['host', 'port', 'apikey', 'ssl', 'index', 'scope']]);
 	_apply_top([['sentryForFrontend', 'sentryForBackend'], 'options', ['dsn', 'profileSampleRate', 'serverName', 'includeLocalVariables', 'proxy', 'keepAlive', 'caCerts']]);
 	_apply_top(['sentryForBackend', 'enableNodeProfiling']);
@@ -522,4 +569,6 @@ function applyEnvOverrides(config: Source) {
 	_apply_top([['maxFileSize', 'maxNoteLength', 'maxRemoteNoteLength', 'maxAltTextLength', 'maxRemoteAltTextLength', 'pidFile', 'filePermissionBits']]);
 	_apply_top(['import', ['downloadTimeout', 'maxFileSize']]);
 	_apply_top([['signToActivityPubGet', 'checkActivityPubGetSignature', 'setupPassword']]);
+	_apply_top(['logging', 'sql', ['disableQueryTruncation', 'enableQueryParamLogging']]);
+	_apply_top(['activityLogging', ['enabled', 'preSave', 'maxAge']]);
 }

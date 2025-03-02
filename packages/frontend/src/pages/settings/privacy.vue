@@ -57,7 +57,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<template #caption>
 					<div>{{ i18n.ts._accountSettings.requireSigninToViewContentsDescription1 }}</div>
 					<div><i class="ti ti-alert-triangle" style="color: var(--MI_THEME-warn);"></i> {{ i18n.ts._accountSettings.requireSigninToViewContentsDescription2 }}</div>
-					<div><i class="ti ti-alert-triangle" style="color: var(--MI_THEME-warn);"></i> {{ i18n.ts._accountSettings.requireSigninToViewContentsDescription3 }}</div>
+					<div v-if="instance.federation !== 'none'"><i class="ti ti-alert-triangle" style="color: var(--MI_THEME-warn);"></i> {{ i18n.ts._accountSettings.requireSigninToViewContentsDescription3 }}</div>
 				</template>
 			</MkSwitch>
 
@@ -93,7 +93,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 				<template #caption>
 					<div>{{ i18n.ts._accountSettings.makeNotesFollowersOnlyBeforeDescription }}</div>
-					<div><i class="ti ti-alert-triangle" style="color: var(--MI_THEME-warn);"></i> {{ i18n.ts._accountSettings.mayNotEffectForFederatedNotes }}</div>
+					<div v-if="instance.federation !== 'none'"><i class="ti ti-alert-triangle" style="color: var(--MI_THEME-warn);"></i> {{ i18n.ts._accountSettings.mayNotEffectForFederatedNotes }}</div>
 				</template>
 			</FormSlot>
 
@@ -129,7 +129,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 				<template #caption>
 					<div>{{ i18n.ts._accountSettings.makeNotesHiddenBeforeDescription }}</div>
-					<div><i class="ti ti-alert-triangle" style="color: var(--MI_THEME-warn);"></i> {{ i18n.ts._accountSettings.mayNotEffectForFederatedNotes }}</div>
+					<div v-if="instance.federation !== 'none'"><i class="ti ti-alert-triangle" style="color: var(--MI_THEME-warn);"></i> {{ i18n.ts._accountSettings.mayNotEffectForFederatedNotes }}</div>
 				</template>
 			</FormSlot>
 		</div>
@@ -155,10 +155,24 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<MkSwitch v-model="defaultNoteLocalOnly">{{ i18n.ts._visibility.disableFederation }}</MkSwitch>
 				</div>
 			</MkFolder>
+
+			<MkSwitch v-model="keepCw" @update:modelValue="save()">{{ i18n.ts.keepCw }}</MkSwitch>
+
+			<MkInput v-model="defaultCW" type="text" manualSave @update:modelValue="save()">
+				<template #label>{{ i18n.ts.defaultCW }}</template>
+				<template #caption>{{ i18n.ts.defaultCWDescription }}</template>
+			</MkInput>
+
+			<MkSelect v-model="defaultCWPriority" :disabled="!defaultCW || !keepCw" @update:modelValue="save()">
+				<template #label>{{ i18n.ts.defaultCWPriority }}</template>
+				<template #caption>{{ i18n.ts.defaultCWPriorityDescription }}</template>
+				<option value="default">{{ i18n.ts._defaultCWPriority.default }}</option>
+				<option value="parent">{{ i18n.ts._defaultCWPriority.parent }}</option>
+				<option value="parentDefault">{{ i18n.ts._defaultCWPriority.parentDefault }}</option>
+				<option value="defaultParent">{{ i18n.ts._defaultCWPriority.defaultParent }}</option>
+			</MkSelect>
 		</div>
 	</FormSection>
-
-	<MkSwitch v-model="keepCw" @update:modelValue="save()">{{ i18n.ts.keepCw }}</MkSwitch>
 </div>
 </template>
 
@@ -171,6 +185,7 @@ import MkFolder from '@/components/MkFolder.vue';
 import { misskeyApi } from '@/scripts/misskey-api.js';
 import { defaultStore } from '@/store.js';
 import { i18n } from '@/i18n.js';
+import { instance } from '@/instance.js';
 import { signinRequired } from '@/account.js';
 import { definePageMetadata } from '@/scripts/page-metadata.js';
 import FormSlot from '@/components/form/slot.vue';
@@ -193,6 +208,8 @@ const hideOnlineStatus = ref($i.hideOnlineStatus);
 const publicReactions = ref($i.publicReactions);
 const followingVisibility = ref($i.followingVisibility);
 const followersVisibility = ref($i.followersVisibility);
+const defaultCW = ref($i.defaultCW);
+const defaultCWPriority = ref($i.defaultCWPriority);
 
 const defaultNoteVisibility = computed(defaultStore.makeGetterSetter('defaultNoteVisibility'));
 const defaultNoteLocalOnly = computed(defaultStore.makeGetterSetter('defaultNoteLocalOnly'));
@@ -224,7 +241,7 @@ watch([makeNotesFollowersOnlyBefore, makeNotesHiddenBefore], () => {
 });
 
 async function update_requireSigninToViewContents(value: boolean) {
-	if (value) {
+	if (value === true && instance.federation !== 'none') {
 		const { canceled } = await os.confirm({
 			type: 'warning',
 			text: i18n.ts.acknowledgeNotesAndEnable,
@@ -251,6 +268,8 @@ function save() {
 		publicReactions: !!publicReactions.value,
 		followingVisibility: followingVisibility.value,
 		followersVisibility: followersVisibility.value,
+		defaultCWPriority: defaultCWPriority.value,
+		defaultCW: defaultCW.value,
 	});
 }
 

@@ -61,6 +61,18 @@ export type ModerationLog = {
 	type: 'unsuspend';
 	info: ModerationLogPayloads['unsuspend'];
 } | {
+	type: 'acceptQuotesUser';
+	info: ModerationLogPayloads['acceptQuotesUser'];
+} | {
+	type: 'rejectQuotesUser';
+	info: ModerationLogPayloads['rejectQuotesUser'];
+} | {
+	type: 'acceptQuotesInstance';
+	info: ModerationLogPayloads['acceptQuotesInstance'];
+} | {
+	type: 'rejectQuotesInstance';
+	info: ModerationLogPayloads['rejectQuotesInstance'];
+} | {
 	type: 'updateUserNote';
 	info: ModerationLogPayloads['updateUserNote'];
 } | {
@@ -118,6 +130,15 @@ export type ModerationLog = {
 	type: 'deleteUserAnnouncement';
 	info: ModerationLogPayloads['deleteUserAnnouncement'];
 } | {
+	type: 'setMandatoryCW';
+	info: ModerationLogPayloads['setMandatoryCW'];
+} | {
+	type: 'setRemoteInstanceNSFW';
+	info: ModerationLogPayloads['setRemoteInstanceNSFW'];
+} | {
+	type: 'unsetRemoteInstanceNSFW';
+	info: ModerationLogPayloads['unsetRemoteInstanceNSFW'];
+} | {
 	type: 'resetPassword';
 	info: ModerationLogPayloads['resetPassword'];
 } | {
@@ -126,6 +147,12 @@ export type ModerationLog = {
 } | {
 	type: 'unsuspendRemoteInstance';
 	info: ModerationLogPayloads['unsuspendRemoteInstance'];
+} | {
+	type: 'rejectRemoteInstanceReports';
+	info: ModerationLogPayloads['rejectRemoteInstanceReports'];
+} | {
+	type: 'acceptRemoteInstanceReports';
+	info: ModerationLogPayloads['acceptRemoteInstanceReports'];
 } | {
 	type: 'updateRemoteInstanceNote';
 	info: ModerationLogPayloads['updateRemoteInstanceNote'];

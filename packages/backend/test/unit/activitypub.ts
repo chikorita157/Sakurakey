@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
+import { IdService } from '@/core/IdService.js';
+
 process.env.NODE_ENV = 'test';
 
 import * as assert from 'assert';
@@ -20,7 +22,7 @@ import { CoreModule } from '@/core/CoreModule.js';
 import { FederatedInstanceService } from '@/core/FederatedInstanceService.js';
 import { LoggerService } from '@/core/LoggerService.js';
 import type { IActor, IApDocument, ICollection, IObject, IPost } from '@/core/activitypub/type.js';
-import { MiMeta, MiNote, UserProfilesRepository } from '@/models/_.js';
+import { MiMeta, MiNote, MiUser, UserProfilesRepository, UserPublickeysRepository } from '@/models/_.js';
 import { DI } from '@/di-symbols.js';
 import { secureRndstr } from '@/misc/secure-rndstr.js';
 import { DownloadService } from '@/core/DownloadService.js';
@@ -93,6 +95,8 @@ describe('ActivityPub', () => {
 	let rendererService: ApRendererService;
 	let jsonLdService: JsonLdService;
 	let resolver: MockResolver;
+	let idService: IdService;
+	let userPublickeysRepository: UserPublickeysRepository;
 
 	const metaInitial = {
 		cacheRemoteFiles: true,
@@ -140,6 +144,8 @@ describe('ActivityPub', () => {
 		imageService = app.get<ApImageService>(ApImageService);
 		jsonLdService = app.get<JsonLdService>(JsonLdService);
 		resolver = new MockResolver(await app.resolve<LoggerService>(LoggerService));
+		idService = app.get<IdService>(IdService);
+		userPublickeysRepository = app.get<UserPublickeysRepository>(DI.userPublickeysRepository);
 
 		// Prevent ApPersonService from fetching instance, as it causes Jest import-after-test error
 		const federatedInstanceService = app.get<FederatedInstanceService>(FederatedInstanceService);
@@ -474,6 +480,212 @@ describe('ActivityPub', () => {
 				_misskey_quote: 'https://example.com/notes/1',
 				'https://example.org/ns#unknown': 'test test bar',
 				// undefined: 'test test baz',
+			});
+		});
+	});
+
+	describe(ApRendererService, () => {
+		let note: MiNote;
+		let author: MiUser;
+
+		beforeEach(() => {
+			author = new MiUser({
+				id: idService.gen(),
+			});
+			note = new MiNote({
+				id: idService.gen(),
+				userId: author.id,
+				visibility: 'public',
+				localOnly: false,
+				text: 'Note text',
+				cw: null,
+				renoteCount: 0,
+				repliesCount: 0,
+				clippedCount: 0,
+				reactions: {},
+				fileIds: [],
+				attachedFileTypes: [],
+				visibleUserIds: [],
+				mentions: [],
+				// This is fucked tbh - it's JSON stored in a TEXT column that gets parsed/serialized all over the place
+				mentionedRemoteUsers: '[]',
+				reactionAndUserPairCache: [],
+				emojis: [],
+				tags: [],
+				hasPoll: false,
+			});
+		});
+
+		describe('renderNote', () => {
+			describe('summary', () => {
+				// I actually don't know why it does this, but the logic was already there so I've preserved it.
+				it('should be zero-width space when CW is empty string', async () => {
+					note.cw = '';
+
+					const result = await rendererService.renderNote(note, author, false);
+
+					expect(result.summary).toBe(String.fromCharCode(0x200B));
+				});
+
+				it('should be undefined when CW is null', async () => {
+					const result = await rendererService.renderNote(note, author, false);
+
+					expect(result.summary).toBeUndefined();
+				});
+
+				it('should be CW when present without mandatoryCW', async () => {
+					note.cw = 'original';
+
+					const result = await rendererService.renderNote(note, author, false);
+
+					expect(result.summary).toBe('original');
+				});
+
+				it('should be mandatoryCW when present without CW', async () => {
+					author.mandatoryCW = 'mandatory';
+
+					const result = await rendererService.renderNote(note, author, false);
+
+					expect(result.summary).toBe('mandatory');
+				});
+
+				it('should be merged when CW and mandatoryCW are both present', async () => {
+					note.cw = 'original';
+					author.mandatoryCW = 'mandatory';
+
+					const result = await rendererService.renderNote(note, author, false);
+
+					expect(result.summary).toBe('original, mandatory');
+				});
+
+				it('should be CW when CW includes mandatoryCW', async () => {
+					note.cw = 'original and mandatory';
+					author.mandatoryCW = 'mandatory';
+
+					const result = await rendererService.renderNote(note, author, false);
+
+					expect(result.summary).toBe('original and mandatory');
+				});
+			});
+		});
+
+		describe('renderUpnote', () => {
+			describe('summary', () => {
+				// I actually don't know why it does this, but the logic was already there so I've preserved it.
+				it('should be zero-width space when CW is empty string', async () => {
+					note.cw = '';
+
+					const result = await rendererService.renderUpNote(note, author, false);
+
+					expect(result.summary).toBe(String.fromCharCode(0x200B));
+				});
+
+				it('should be undefined when CW is null', async () => {
+					const result = await rendererService.renderUpNote(note, author, false);
+
+					expect(result.summary).toBeUndefined();
+				});
+
+				it('should be CW when present without mandatoryCW', async () => {
+					note.cw = 'original';
+
+					const result = await rendererService.renderUpNote(note, author, false);
+
+					expect(result.summary).toBe('original');
+				});
+
+				it('should be mandatoryCW when present without CW', async () => {
+					author.mandatoryCW = 'mandatory';
+
+					const result = await rendererService.renderUpNote(note, author, false);
+
+					expect(result.summary).toBe('mandatory');
+				});
+
+				it('should be merged when CW and mandatoryCW are both present', async () => {
+					note.cw = 'original';
+					author.mandatoryCW = 'mandatory';
+
+					const result = await rendererService.renderUpNote(note, author, false);
+
+					expect(result.summary).toBe('original, mandatory');
+				});
+
+				it('should be CW when CW includes mandatoryCW', async () => {
+					note.cw = 'original and mandatory';
+					author.mandatoryCW = 'mandatory';
+
+					const result = await rendererService.renderUpNote(note, author, false);
+
+					expect(result.summary).toBe('original and mandatory');
+				});
+			});
+		});
+	});
+
+	describe(ApPersonService, () => {
+		describe('createPerson', () => {
+			it('should trim publicKey', async () => {
+				const actor = createRandomActor();
+				actor.publicKey = {
+					id: `${actor.id}#main-key`,
+					publicKeyPem: '  key material\t\n\r\n \n',
+				};
+				resolver.register(actor.id, actor);
+
+				const user = await personService.createPerson(actor.id, resolver);
+				const publicKey = await userPublickeysRepository.findOneBy({ userId: user.id });
+
+				expect(publicKey).not.toBeNull();
+				expect(publicKey?.keyPem).toBe('key material');
+			});
+
+			it('should accept SocialHome actor', async () => {
+				// This is taken from a real SocialHome actor, including the 13,905 newline characters in the public key.
+				const actor = {
+					'@context': ['https://www.w3.org/ns/activitystreams', 'https://w3id.org/security/v1', {
+						'pyfed': 'https://docs.jasonrobinson.me/ns/python-federation#',
+						'diaspora': 'https://diasporafoundation.org/ns/',
+						'manuallyApprovesFollowers': 'as:manuallyApprovesFollowers',
+					}],
+					id: 'https://socialhome.network/u/hq/',
+					type: 'Person',
+					inbox: 'https://socialhome.network/u/hq/inbox/',
+					'diaspora:guid': '7538bd1b-d3a8-49a5-bf00-db63fcc9114f',
+					'diaspora:handle': 'hq@socialhome.network',
+					publicKey: {
+						id: 'https://socialhome.network/u/hq/#main-key',
+						owner: 'https://socialhome.network/u/hq/',
+						publicKeyPem: '-----BEGIN PUBLIC KEY-----\nMIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAg39sDmTAJ7l9bl5jYLmj\nKYnDZJgRiO/WR+V1HEMEsRoEPTxJzWe+Ou7YTUhOOvDRu5ncEn3ictF3/BxhhQC1\nQwUKYlfuU1R7PyGqWtGm6300mDAmbq+eyC+fwV9FbkCm9npRatZfnZXZWuCgA6f7\nWmmBw09QVZQ6Ypu+7CF/Q6bv0E5B2hieTSbRgavdSkEopMyJhPs5/X6Hh4XYSi7t\nYEg9vD0d0J9QJSnCTYIZT145cV1DANV/4KjhKkYgvt4hLNOKZ1v4QC57K+PFna9N\ntxm1nMxwjpBPus8LQeDii/MwKoiZ7LBjeflm0C9AMFlNPB9iq3rEXo3eyCEb7Lyr\nEp+oqYNfopFIRPNfhBxtkx5ioUXty3cx1WnZtehqGdpOcb1wUatW5IjV8tlfLIr7\nrDNCxgGnScR6h7++BHYDdDVBgGUkC5ELIxxSMqlYMiBGVmYdIoAGO6nuqw4bp5l3\nUf07d28GoZgcRBVZWC/xOtRb7E6PTzsE7xd51UijusRC79lnapzTWY9GAY0ZYu+w\nbAxO7u3+Knr6EXZkGkmrElKIT2N6SPJY3Xo91+PT1Y77JMFkkWlEX9IO08fALsqg\nbMSKNQ8WfyHCTjaiH3n4BdgTjP4kRm2OhczxvgCFvtcOK+M60YdwM6MOZDEOVtGU\nGIYA1mtQW7a8jb5QPTQu9GcCAwEAAQ==\n-----END PUBLIC KEY-----' + ''.padEnd(13905, '\n'),
+					},
+					endpoints: { 'sharedInbox': 'https://socialhome.network/receive/public/' },
+					followers: 'https://socialhome.network/u/hq/followers/',
+					following: 'https://socialhome.network/u/hq/following/',
+					icon: {
+						type: 'Image',
+						'pyfed:inlineImage': false,
+						mediaType: 'image/png',
+						url: 'https://socialhome.network/media/__sized__/profiles/Socialhome-dark-600-crop-c0-5__0-5-300x300.png',
+					},
+					manuallyApprovesFollowers: false,
+					name: 'Socialhome HQ',
+					outbox: 'https://socialhome.network/u/hq/outbox/',
+					preferredUsername: 'hq',
+					published: '2017-01-29T19:28:19+00:00',
+					updated: '2025-02-17T23:11:30+00:00',
+					url: 'https://socialhome.network/p/7538bd1b-d3a8-49a5-bf00-db63fcc9114f/',
+				};
+				resolver.register(actor.id, actor);
+				resolver.register(actor.publicKey.id, actor.publicKey);
+				resolver.register(actor.followers, { id: actor.followers, type: 'Collection', totalItems: 0, items: [] } satisfies ICollection);
+				resolver.register(actor.following, { id: actor.following, type: 'Collection', totalItems: 0, items: [] } satisfies ICollection);
+				resolver.register(actor.outbox, { id: actor.outbox, type: 'Collection', totalItems: 0, items: [] } satisfies ICollection);
+
+				const user = await personService.createPerson(actor.id, resolver);
+				const publicKey = await userPublickeysRepository.findOneBy({ userId: user.id });
+
+				expect(user.uri).toBe(actor.id);
+				expect(publicKey).not.toBeNull();
 			});
 		});
 	});

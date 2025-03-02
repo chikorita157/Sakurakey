@@ -95,6 +95,7 @@ export class MetaEntityService {
 			mcaptchaInstanceUrl: instance.mcaptchaInstanceUrl,
 			enableRecaptcha: instance.enableRecaptcha,
 			enableAchievements: instance.enableAchievements,
+			robotsTxt: instance.robotsTxt,
 			recaptchaSiteKey: instance.recaptchaSiteKey,
 			enableTurnstile: instance.enableTurnstile,
 			turnstileSiteKey: instance.turnstileSiteKey,
@@ -144,6 +145,7 @@ export class MetaEntityService {
 			enableUrlPreview: instance.urlPreviewEnabled,
 			noteSearchableScope: (this.config.meilisearch == null || this.config.meilisearch.scope !== 'local') ? 'global' : 'local',
 			maxFileSize: this.config.maxFileSize,
+			federation: this.meta.federation,
 		};
 
 		return packed;
@@ -184,3 +186,4 @@ export class MetaEntityService {
 		return packDetailed;
 	}
 }
+

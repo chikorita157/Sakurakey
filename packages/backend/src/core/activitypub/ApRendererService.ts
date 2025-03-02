@@ -28,6 +28,7 @@ import type { UsersRepository, UserProfilesRepository, NotesRepository, DriveFil
 import { bindThis } from '@/decorators.js';
 import { CustomEmojiService } from '@/core/CustomEmojiService.js';
 import { IdService } from '@/core/IdService.js';
+import { appendContentWarning } from '@/misc/append-content-warning.js';
 import { JsonLdService } from './JsonLdService.js';
 import { ApMfmService } from './ApMfmService.js';
 import { CONTEXT } from './misc/contexts.js';
@@ -192,6 +193,9 @@ export class ApRendererService {
 				// || emoji.originalUrl してるのは後方互換性のため（publicUrlはstringなので??はだめ）
 				url: emoji.publicUrl || emoji.originalUrl,
 			},
+			_misskey_license: {
+				freeText: emoji.license,
+			},
 		};
 	}
 
@@ -336,7 +340,7 @@ export class ApRendererService {
 	}
 
 	@bindThis
-	public async renderNote(note: MiNote, dive = true): Promise<IPost> {
+	public async renderNote(note: MiNote, author: MiUser, dive = true): Promise<IPost> {
 		const getPromisedFiles = async (ids: string[]): Promise<MiDriveFile[]> => {
 			if (ids.length === 0) return [];
 			const items = await this.driveFilesRepository.findBy({ id: In(ids) });
@@ -350,14 +354,14 @@ export class ApRendererService {
 			inReplyToNote = await this.notesRepository.findOneBy({ id: note.replyId });
 
 			if (inReplyToNote != null) {
-				const inReplyToUserExist = await this.usersRepository.exists({ where: { id: inReplyToNote.userId } });
+				const inReplyToUser = await this.usersRepository.findOneBy({ id: inReplyToNote.userId });
 
-				if (inReplyToUserExist) {
+				if (inReplyToUser) {
 					if (inReplyToNote.uri) {
 						inReplyTo = inReplyToNote.uri;
 					} else {
 						if (dive) {
-							inReplyTo = await this.renderNote(inReplyToNote, false);
+							inReplyTo = await this.renderNote(inReplyToNote, inReplyToUser, false);
 						} else {
 							inReplyTo = `${this.config.url}/notes/${inReplyToNote.id}`;
 						}
@@ -420,7 +424,12 @@ export class ApRendererService {
 			apAppend += `\n\nRE: ${quote}`;
 		}
 
-		const summary = note.cw === '' ? String.fromCharCode(0x200B) : note.cw;
+		let summary = note.cw === '' ? String.fromCharCode(0x200B) : note.cw;
+
+		// Apply mandatory CW, if applicable
+		if (author.mandatoryCW) {
+			summary = appendContentWarning(summary, author.mandatoryCW);
+		}
 
 		const { content } = this.apMfmService.getNoteHtml(note, apAppend);
 
@@ -633,7 +642,7 @@ export class ApRendererService {
 	}
 
 	@bindThis
-	public async renderUpNote(note: MiNote, dive = true): Promise<IPost> {
+	public async renderUpNote(note: MiNote, author: MiUser, dive = true): Promise<IPost> {
 		const getPromisedFiles = async (ids: string[]): Promise<MiDriveFile[]> => {
 			if (ids.length === 0) return [];
 			const items = await this.driveFilesRepository.findBy({ id: In(ids) });
@@ -647,14 +656,14 @@ export class ApRendererService {
 			inReplyToNote = await this.notesRepository.findOneBy({ id: note.replyId });
 
 			if (inReplyToNote != null) {
-				const inReplyToUserExist = await this.usersRepository.exists({ where: { id: inReplyToNote.userId } });
+				const inReplyToUser = await this.usersRepository.findOneBy({ id: inReplyToNote.userId });
 
-				if (inReplyToUserExist) {
+				if (inReplyToUser) {
 					if (inReplyToNote.uri) {
 						inReplyTo = inReplyToNote.uri;
 					} else {
 						if (dive) {
-							inReplyTo = await this.renderUpNote(inReplyToNote, false);
+							inReplyTo = await this.renderUpNote(inReplyToNote, inReplyToUser, false);
 						} else {
 							inReplyTo = `${this.config.url}/notes/${inReplyToNote.id}`;
 						}
@@ -717,7 +726,12 @@ export class ApRendererService {
 			apAppend += `\n\nRE: ${quote}`;
 		}
 
-		const summary = note.cw === '' ? String.fromCharCode(0x200B) : note.cw;
+		let summary = note.cw === '' ? String.fromCharCode(0x200B) : note.cw;
+
+		// Apply mandatory CW, if applicable
+		if (author.mandatoryCW) {
+			summary = appendContentWarning(summary, author.mandatoryCW);
+		}
 
 		const { content } = this.apMfmService.getNoteHtml(note, apAppend);
 
