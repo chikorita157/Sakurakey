@@ -252,38 +252,39 @@ export class SearchService {
 
 	@bindThis
 	public async indexNote(note: MiNote): Promise<void> {
-		if (!this.meilisearch) return;
-		if (note.text == null && note.cw == null) return;
-		if (!['public'].includes(note.visibility)) return;
+		if (this.meilisearch) {
+			if (note.text == null && note.cw == null) return;
+			if (!['public'].includes(note.visibility)) return;
 
-		switch (this.meilisearchIndexScope) {
-			case 'global':
-				break;
+			switch (this.meilisearchIndexScope) {
+				case 'global':
+					break;
 
-			case 'local':
-				if (note.userHost == null) break;
-				return;
+				case 'local':
+					if (note.userHost == null) break;
+					return;
 
-			default: {
-				if (note.userHost == null) break;
-				if (this.meilisearchIndexScope.includes(note.userHost)) break;
-				return;
+				default: {
+					if (note.userHost == null) break;
+					if (this.meilisearchIndexScope.includes(note.userHost)) break;
+					return;
+				}
+
+				await this.meilisearchNoteIndex?.addDocuments([{
+					id: note.id,
+					createdAt: this.idService.parse(note.id).date.getTime(),
+					userId: note.userId,
+					userHost: note.userHost,
+					channelId: note.channelId,
+					cw: note.cw,
+					text: note.text,
+					tags: note.tags,
+					attachedFileTypes: note.attachedFileTypes,
+				}], {
+					primaryKey: 'id',
+				});
 			}
-
-			await this.meilisearchNoteIndex?.addDocuments([{
-				id: note.id,
-				createdAt: this.idService.parse(note.id).date.getTime(),
-				userId: note.userId,
-				userHost: note.userHost,
-				channelId: note.channelId,
-				cw: note.cw,
-				text: note.text,
-				tags: note.tags,
-				attachedFileTypes: note.attachedFileTypes,
-			}], {
-				primaryKey: 'id',
-			});
-		}	else if (this.elasticsearch) {
+		} else if (this.elasticsearch) {
 			const body = {
 				createdAt: this.idService.parse(note.id).date.getTime(),
 				userId: note.userId,
@@ -300,6 +301,9 @@ export class SearchService {
 			}).catch((error) => {
 				console.error(error);
 			});
+		}
+		e;se {
+			return:
 		}
 
 		await this.meilisearchNoteIndex?.addDocuments([{
