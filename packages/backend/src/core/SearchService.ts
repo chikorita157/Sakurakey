@@ -302,7 +302,7 @@ export class SearchService {
 				console.error(error);
 			});
 		}
-		e;se {
+		else {
 			return:
 		}
 
