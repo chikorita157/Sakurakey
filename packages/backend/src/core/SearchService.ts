@@ -303,7 +303,7 @@ export class SearchService {
 			});
 		}
 		else {
-			return:
+			return;
 		}
 
 		await this.meilisearchNoteIndex?.addDocuments([{
