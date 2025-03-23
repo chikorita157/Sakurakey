@@ -76,15 +76,15 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<span v-if="appearNote.updatedAt" ref="menuVersionsButton" style="margin-left: 0.5em;" title="Edited" @mousedown="menuVersions()"><i class="ph-pencil-simple ph-bold ph-lg"></i></span>
 						<span v-if="appearNote.localOnly" style="margin-left: 0.5em;" :title="i18n.ts._visibility['disableFederation']"><i class="ti ti-home"></i></span>
 					</div>
-					<SkInstanceTicker v-if="showTicker" :instance="appearNote.user.instance"/>
+					<SkInstanceTicker v-if="showTicker" :host="appearNote.user.host" :instance="appearNote.user.instance"/>
 				</div>
 			</div>
 		</header>
 		<div :class="$style.noteContent">
-			<p v-if="appearNote.cw != null" :class="$style.cw">
+			<p v-if="mergedCW != null" :class="$style.cw">
 				<Mfm
-					v-if="appearNote.cw != ''"
-					:text="appearNote.cw"
+					v-if="mergedCW != ''"
+					:text="mergedCW"
 					:author="appearNote.user"
 					:nyaize="'respect'"
 					:enableEmojiMenu="true"
@@ -93,7 +93,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				/>
 				<MkCwButton v-model="showContent" :text="appearNote.text" :renote="appearNote.renote" :files="appearNote.files" :poll="appearNote.poll"/>
 			</p>
-			<div v-show="appearNote.cw == null || showContent">
+			<div v-show="mergedCW == null || showContent">
 				<span v-if="appearNote.isHidden" style="opacity: 0.5">({{ i18n.ts.private }})</span>
 				<Mfm
 					v-if="appearNote.text"
@@ -120,9 +120,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<div v-if="appearNote.files && appearNote.files.length > 0">
 					<MkMediaList ref="galleryEl" :mediaList="appearNote.files"/>
 				</div>
-				<MkPoll v-if="appearNote.poll" ref="pollViewer" :noteId="appearNote.id" :poll="appearNote.poll" :local="!appearNote.user.host" :class="$style.poll"/>
+				<MkPoll v-if="appearNote.poll" ref="pollViewer" :noteId="appearNote.id" :poll="appearNote.poll" :local="!appearNote.user.host" :class="$style.poll" :author="appearNote.user" :emojiUrls="appearNote.emojis"/>
 				<div v-if="isEnabledUrlPreview">
-					<MkUrlPreview v-for="url in urls" :key="url" :url="url" :compact="true" :detail="true" :showAsQuote="true" style="margin-top: 6px;"/>
+					<MkUrlPreview v-for="url in urls" :key="url" :url="url" :compact="true" :detail="true" :showAsQuote="!appearNote.user.rejectQuotes" :skipNoteIds="[appearNote.renote?.id]" style="margin-top: 6px;"/>
 				</div>
 				<div v-if="appearNote.renote" :class="$style.quote"><SkNoteSimple :note="appearNote.renote" :class="$style.quoteNote" :expandAllCws="props.expandAllCws"/></div>
 			</div>
@@ -145,10 +145,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 			<button
 				v-if="canRenote"
 				ref="renoteButton"
+				v-tooltip="renoteTooltip"
 				class="_button"
 				:class="$style.noteFooterButton"
 				:style="renoted ? 'color: var(--MI_THEME-accent) !important;' : ''"
-				@mousedown.prevent="renoted ? undoRenote() : boostVisibility()"
+				@mousedown.prevent="renoted ? undoRenote() : boostVisibility($event.shiftKey)"
 			>
 				<i class="ti ti-repeat"></i>
 				<p v-if="appearNote.renoteCount > 0" :class="$style.noteFooterButtonCount">{{ number(appearNote.renoteCount) }}</p>
@@ -157,7 +158,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<i class="ti ti-ban"></i>
 			</button>
 			<button
-				v-if="canRenote"
+				v-if="canRenote && !$i?.rejectQuotes"
 				ref="quoteButton"
 				class="_button"
 				:class="$style.noteFooterButton"
@@ -249,6 +250,7 @@ import * as mfm from '@transfem-org/sfm-js';
 import * as Misskey from 'misskey-js';
 import { isLink } from '@@/js/is-link.js';
 import { host } from '@@/js/config.js';
+import { computeMergedCw } from '@@/js/compute-merged-cw.js';
 import SkNoteSub from '@/components/SkNoteSub.vue';
 import SkNoteSimple from '@/components/SkNoteSimple.vue';
 import MkReactionsViewer from '@/components/MkReactionsViewer.vue';
@@ -285,7 +287,7 @@ import MkUserCardMini from '@/components/MkUserCardMini.vue';
 import MkPagination, { type Paging } from '@/components/MkPagination.vue';
 import MkReactionIcon from '@/components/MkReactionIcon.vue';
 import MkButton from '@/components/MkButton.vue';
-import { boostMenuItems, type Visibility } from '@/scripts/boost-quote.js';
+import { boostMenuItems, type Visibility, computeRenoteTooltip } from '@/scripts/boost-quote.js';
 import { isEnabledUrlPreview } from '@/instance.js';
 import { getAppearNote } from '@/scripts/get-appear-note.js';
 import { type Keymap } from '@/scripts/hotkey.js';
@@ -353,6 +355,10 @@ const quotes = ref<Misskey.entities.Note[]>([]);
 const canRenote = computed(() => ['public', 'home'].includes(appearNote.value.visibility) || (appearNote.value.visibility === 'followers' && appearNote.value.userId === $i?.id));
 const defaultLike = computed(() => defaultStore.state.like ? defaultStore.state.like : null);
 
+const mergedCW = computed(() => computeMergedCw(appearNote.value));
+
+const renoteTooltip = computeRenoteTooltip(renoted);
+
 watch(() => props.expandAllCws, (expandAllCws) => {
 	if (expandAllCws !== showContent.value) showContent.value = expandAllCws;
 });
@@ -371,7 +377,7 @@ let renoting = false;
 
 const pleaseLoginContext = computed<OpenOnRemoteOptions>(() => ({
 	type: 'lookup',
-	url: `https://${host}/notes/${appearNote.value.id}`,
+	url: appearNote.value.url ?? appearNote.value.uri ?? `https://${host}/notes/${appearNote.value.id}`,
 }));
 
 const keymap = {
@@ -484,10 +490,10 @@ useTooltip(quoteButton, async (showing) => {
 	});
 });
 
-function boostVisibility() {
+function boostVisibility(forceMenu: boolean = false) {
 	if (renoting) return;
 
-	if (!defaultStore.state.showVisibilitySelectorOnBoost) {
+	if (!defaultStore.state.showVisibilitySelectorOnBoost && !forceMenu) {
 		renote(defaultStore.state.visibilityOnBoost);
 	} else {
 		os.popupMenu(boostMenuItems(appearNote, renote), renoteButton.value);

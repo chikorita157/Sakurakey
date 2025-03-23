@@ -28,10 +28,12 @@ import type { UsersRepository, UserProfilesRepository, NotesRepository, DriveFil
 import { bindThis } from '@/decorators.js';
 import { CustomEmojiService } from '@/core/CustomEmojiService.js';
 import { IdService } from '@/core/IdService.js';
+import { appendContentWarning } from '@/misc/append-content-warning.js';
+import { QueryService } from '@/core/QueryService.js';
 import { JsonLdService } from './JsonLdService.js';
 import { ApMfmService } from './ApMfmService.js';
 import { CONTEXT } from './misc/contexts.js';
-import { getApId } from './type.js';
+import { getApId, IOrderedCollection, IOrderedCollectionPage } from './type.js';
 import type { IAccept, IActivity, IAdd, IAnnounce, IApDocument, IApEmoji, IApHashtag, IApImage, IApMention, IBlock, ICreate, IDelete, IFlag, IFollow, IKey, ILike, IMove, IObject, IPost, IQuestion, IReject, IRemove, ITombstone, IUndo, IUpdate } from './type.js';
 
 @Injectable()
@@ -69,6 +71,7 @@ export class ApRendererService {
 		private apMfmService: ApMfmService,
 		private mfmService: MfmService,
 		private idService: IdService,
+		private readonly queryService: QueryService,
 	) {
 	}
 
@@ -191,6 +194,9 @@ export class ApRendererService {
 				mediaType: emoji.type ?? 'image/png',
 				// || emoji.originalUrl してるのは後方互換性のため（publicUrlはstringなので??はだめ）
 				url: emoji.publicUrl || emoji.originalUrl,
+			},
+			_misskey_license: {
+				freeText: emoji.license,
 			},
 		};
 	}
@@ -336,7 +342,7 @@ export class ApRendererService {
 	}
 
 	@bindThis
-	public async renderNote(note: MiNote, dive = true): Promise<IPost> {
+	public async renderNote(note: MiNote, author: MiUser, dive = true): Promise<IPost> {
 		const getPromisedFiles = async (ids: string[]): Promise<MiDriveFile[]> => {
 			if (ids.length === 0) return [];
 			const items = await this.driveFilesRepository.findBy({ id: In(ids) });
@@ -350,14 +356,14 @@ export class ApRendererService {
 			inReplyToNote = await this.notesRepository.findOneBy({ id: note.replyId });
 
 			if (inReplyToNote != null) {
-				const inReplyToUserExist = await this.usersRepository.exists({ where: { id: inReplyToNote.userId } });
+				const inReplyToUser = await this.usersRepository.findOneBy({ id: inReplyToNote.userId });
 
-				if (inReplyToUserExist) {
+				if (inReplyToUser) {
 					if (inReplyToNote.uri) {
 						inReplyTo = inReplyToNote.uri;
 					} else {
 						if (dive) {
-							inReplyTo = await this.renderNote(inReplyToNote, false);
+							inReplyTo = await this.renderNote(inReplyToNote, inReplyToUser, false);
 						} else {
 							inReplyTo = `${this.config.url}/notes/${inReplyToNote.id}`;
 						}
@@ -384,13 +390,16 @@ export class ApRendererService {
 
 		let to: string[] = [];
 		let cc: string[] = [];
+		let isPublic = false;
 
 		if (note.visibility === 'public') {
 			to = ['https://www.w3.org/ns/activitystreams#Public'];
 			cc = [`${attributedTo}/followers`].concat(mentions);
+			isPublic = true;
 		} else if (note.visibility === 'home') {
 			to = [`${attributedTo}/followers`];
 			cc = ['https://www.w3.org/ns/activitystreams#Public'].concat(mentions);
+			isPublic = true;
 		} else if (note.visibility === 'followers') {
 			to = [`${attributedTo}/followers`];
 			cc = mentions;
@@ -420,7 +429,12 @@ export class ApRendererService {
 			apAppend += `\n\nRE: ${quote}`;
 		}
 
-		const summary = note.cw === '' ? String.fromCharCode(0x200B) : note.cw;
+		let summary = note.cw === '' ? String.fromCharCode(0x200B) : note.cw;
+
+		// Apply mandatory CW, if applicable
+		if (author.mandatoryCW) {
+			summary = appendContentWarning(summary, author.mandatoryCW);
+		}
 
 		const { content } = this.apMfmService.getNoteHtml(note, apAppend);
 
@@ -446,6 +460,10 @@ export class ApRendererService {
 			})),
 		} as const : {};
 
+		// Render the outer replies collection wrapper, which contains the count but not the actual URLs.
+		// This saves one hop (request) when de-referencing the replies.
+		const replies = isPublic ? await this.renderRepliesCollection(note.id) : undefined;
+
 		return {
 			id: `${this.config.url}/notes/${note.id}`,
 			type: 'Note',
@@ -464,6 +482,7 @@ export class ApRendererService {
 			to,
 			cc,
 			inReplyTo,
+			replies,
 			attachment: files.map(x => this.renderDocument(x)),
 			sensitive: note.cw != null || files.some(file => file.isSensitive),
 			tag,
@@ -563,6 +582,38 @@ export class ApRendererService {
 	}
 
 	@bindThis
+	public async renderPersonRedacted(user: MiLocalUser) {
+		const id = this.userEntityService.genLocalUserUri(user.id);
+		const isSystem = user.username.includes('.');
+
+		const keypair = await this.userKeypairService.getUserKeypair(user.id);
+
+		return {
+			// Basic federation metadata
+			type: isSystem ? 'Application' : user.isBot ? 'Service' : 'Person',
+			id,
+			inbox: `${id}/inbox`,
+			outbox: `${id}/outbox`,
+			sharedInbox: `${this.config.url}/inbox`,
+			endpoints: { sharedInbox: `${this.config.url}/inbox` },
+			url: `${this.config.url}/@${user.username}`,
+			preferredUsername: user.username,
+			publicKey: this.renderKey(user, keypair, '#main-key'),
+
+			// Privacy settings
+			_misskey_requireSigninToViewContents: user.requireSigninToViewContents,
+			_misskey_makeNotesFollowersOnlyBefore: user.makeNotesFollowersOnlyBefore,
+			_misskey_makeNotesHiddenBefore: user.makeNotesHiddenBefore,
+			manuallyApprovesFollowers: user.isLocked,
+			discoverable: user.isExplorable,
+			hideOnlineStatus: user.hideOnlineStatus,
+			noindex: user.noindex,
+			indexable: !user.noindex,
+			enableRss: user.enableRss,
+		};
+	}
+
+	@bindThis
 	public renderQuestion(user: { id: MiUser['id'] }, note: MiNote, poll: MiPoll): IQuestion {
 		return {
 			type: 'Question',
@@ -633,7 +684,7 @@ export class ApRendererService {
 	}
 
 	@bindThis
-	public async renderUpNote(note: MiNote, dive = true): Promise<IPost> {
+	public async renderUpNote(note: MiNote, author: MiUser, dive = true): Promise<IPost> {
 		const getPromisedFiles = async (ids: string[]): Promise<MiDriveFile[]> => {
 			if (ids.length === 0) return [];
 			const items = await this.driveFilesRepository.findBy({ id: In(ids) });
@@ -647,14 +698,14 @@ export class ApRendererService {
 			inReplyToNote = await this.notesRepository.findOneBy({ id: note.replyId });
 
 			if (inReplyToNote != null) {
-				const inReplyToUserExist = await this.usersRepository.exists({ where: { id: inReplyToNote.userId } });
+				const inReplyToUser = await this.usersRepository.findOneBy({ id: inReplyToNote.userId });
 
-				if (inReplyToUserExist) {
+				if (inReplyToUser) {
 					if (inReplyToNote.uri) {
 						inReplyTo = inReplyToNote.uri;
 					} else {
 						if (dive) {
-							inReplyTo = await this.renderUpNote(inReplyToNote, false);
+							inReplyTo = await this.renderUpNote(inReplyToNote, inReplyToUser, false);
 						} else {
 							inReplyTo = `${this.config.url}/notes/${inReplyToNote.id}`;
 						}
@@ -717,7 +768,12 @@ export class ApRendererService {
 			apAppend += `\n\nRE: ${quote}`;
 		}
 
-		const summary = note.cw === '' ? String.fromCharCode(0x200B) : note.cw;
+		let summary = note.cw === '' ? String.fromCharCode(0x200B) : note.cw;
+
+		// Apply mandatory CW, if applicable
+		if (author.mandatoryCW) {
+			summary = appendContentWarning(summary, author.mandatoryCW);
+		}
 
 		const { content } = this.apMfmService.getNoteHtml(note, apAppend);
 
@@ -861,6 +917,67 @@ export class ApRendererService {
 		if (orderedItems) page.orderedItems = orderedItems;
 
 		return page;
+	}
+
+	/**
+	 * Renders the reply collection wrapper object for a note
+	 * @param noteId Note whose reply collection to render.
+	 */
+	@bindThis
+	public async renderRepliesCollection(noteId: string): Promise<IOrderedCollection> {
+		const replyCount = await this.notesRepository.countBy({
+			replyId: noteId,
+			visibility: In(['public', 'home']),
+			localOnly: false,
+		});
+
+		return {
+			type: 'OrderedCollection',
+			id: `${this.config.url}/notes/${noteId}/replies`,
+			first: `${this.config.url}/notes/${noteId}/replies?page=true`,
+			totalItems: replyCount,
+		};
+	}
+
+	/**
+	 * Renders a page of the replies collection for a note
+	 * @param noteId Return notes that are inReplyTo this value.
+	 * @param untilId If set, return only notes that are *older* than this value.
+	 */
+	@bindThis
+	public async renderRepliesCollectionPage(noteId: string, untilId: string | undefined): Promise<IOrderedCollectionPage> {
+		const replyCount = await this.notesRepository.countBy({
+			replyId: noteId,
+			visibility: In(['public', 'home']),
+			localOnly: false,
+		});
+
+		const limit = 50;
+		const results = await this.queryService.makePaginationQuery(this.notesRepository.createQueryBuilder('note'), undefined, untilId)
+			.andWhere({
+				replyId: noteId,
+				visibility: In(['public', 'home']),
+				localOnly: false,
+			})
+			.select(['note.id', 'note.uri'])
+			.limit(limit)
+			.getRawMany<{ note_id: string, note_uri: string | null }>();
+
+		const hasNextPage = results.length >= limit;
+		const baseId = `${this.config.url}/notes/${noteId}/replies?page=true`;
+
+		return {
+			type: 'OrderedCollectionPage',
+			id: untilId == null ? baseId : `${baseId}&until_id=${untilId}`,
+			partOf: `${this.config.url}/notes/${noteId}/replies`,
+			first: baseId,
+			next: hasNextPage ? `${baseId}&until_id=${results.at(-1)?.note_id}` : undefined,
+			totalItems: replyCount,
+			orderedItems: results.map(r => {
+				// Remote notes have a URI, local have just an ID.
+				return r.note_uri ?? `${this.config.url}/notes/${r.note_id}`;
+			}),
+		};
 	}
 
 	@bindThis

@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
+import { userUnsignedFetchOptions } from '@/const.js';
+
 export const notificationRecieveConfig = {
 	type: 'object',
 	oneOf: [
@@ -133,6 +135,14 @@ export const packedUserLiteSchema = {
 		enableRss: {
 			type: 'boolean',
 			nullable: false, optional: false,
+		},
+		mandatoryCW: {
+			type: 'string',
+			nullable: true, optional: false,
+		},
+		rejectQuotes: {
+			type: 'boolean',
+			nullable: false, optional: true,
 		},
 		isBot: {
 			type: 'boolean',
@@ -752,6 +762,20 @@ export const packedMeDetailedOnlySchema = {
 			},
 		},
 		//#endregion
+		defaultCW: {
+			type: 'string',
+			nullable: true, optional: false,
+		},
+		defaultCWPriority: {
+			type: 'string',
+			enum: ['default', 'parent', 'defaultParent', 'parentDefault'],
+			nullable: false, optional: false,
+		},
+		allowUnsignedFetch: {
+			type: 'string',
+			enum: userUnsignedFetchOptions,
+			nullable: false, optional: false,
+		},
 	},
 } as const;
 

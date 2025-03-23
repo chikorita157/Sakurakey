@@ -19,6 +19,7 @@ import { MiMeta } from '@/models/Meta.js';
 import { RedisKVCache } from '@/misc/cache.js';
 import { UtilityService } from '@/core/UtilityService.js';
 import type { FastifyRequest, FastifyReply } from 'fastify';
+import { ApDbResolverService } from '@/core/activitypub/ApDbResolverService.js';
 
 @Injectable()
 export class UrlPreviewService {
@@ -38,6 +39,7 @@ export class UrlPreviewService {
 		private httpRequestService: HttpRequestService,
 		private loggerService: LoggerService,
 		private utilityService: UtilityService,
+		private apDbResolverService: ApDbResolverService,
 	) {
 		this.logger = this.loggerService.getLogger('url-preview');
 		this.previewCache = new RedisKVCache<SummalyResult>(this.redisClient, 'summaly', {
@@ -102,11 +104,15 @@ export class UrlPreviewService {
 		}
 
 		const key = `${url}@${lang}`;
-		const cached = await this.previewCache.get(key);
+		const cached = await this.previewCache.get(key) as SummalyResult & { haveNoteLocally?: boolean };
 		if (cached !== undefined) {
 			this.logger.info(`Returning cache preview of ${key}`);
 			// Cache 7days
 			reply.header('Cache-Control', 'max-age=604800, immutable');
+
+			if (cached.activityPub) {
+				cached.haveNoteLocally = !! await this.apDbResolverService.getNoteFromApId(cached.activityPub);
+			}
 
 			return cached;
 		}
@@ -116,7 +122,7 @@ export class UrlPreviewService {
 			: `Getting preview of ${key} ...`);
 
 		try {
-			const summary = this.meta.urlPreviewSummaryProxyUrl
+			const summary: SummalyResult & { haveNoteLocally?: boolean } = this.meta.urlPreviewSummaryProxyUrl
 				? await this.fetchSummaryFromProxy(url, this.meta, lang)
 				: await this.fetchSummary(url, this.meta, lang);
 
@@ -134,6 +140,10 @@ export class UrlPreviewService {
 			summary.thumbnail = this.wrap(summary.thumbnail);
 
 			this.previewCache.set(key, summary);
+
+			if (summary.activityPub) {
+				summary.haveNoteLocally = !! await this.apDbResolverService.getNoteFromApId(summary.activityPub);
+			}
 
 			// Cache 7days
 			reply.header('Cache-Control', 'max-age=604800, immutable');

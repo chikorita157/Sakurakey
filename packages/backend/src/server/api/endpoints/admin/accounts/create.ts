@@ -6,7 +6,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Endpoint } from '@/server/api/endpoint-base.js';
 import type { UsersRepository } from '@/models/_.js';
-import { MiAccessToken, MiUser } from '@/models/_.js';
 import { SignupService } from '@/core/SignupService.js';
 import { UserEntityService } from '@/core/entities/UserEntityService.js';
 import { InstanceActorService } from '@/core/InstanceActorService.js';
@@ -16,6 +15,7 @@ import type { Config } from '@/config.js';
 import { ApiError } from '@/server/api/error.js';
 import { Packed } from '@/misc/json-schema.js';
 import { RoleService } from '@/core/RoleService.js';
+import { ModerationLogService } from '@/core/ModerationLogService.js';
 
 export const meta = {
 	tags: ['admin'],
@@ -97,6 +97,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 		private userEntityService: UserEntityService,
 		private signupService: SignupService,
 		private instanceActorService: InstanceActorService,
+		private readonly moderationLogService: ModerationLogService,
 	) {
 		super(meta, paramDef, async (ps, _me, token) => {
 			const me = _me ? await this.usersRepository.findOneByOrFail({ id: _me.id }) : null;
@@ -137,6 +138,13 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 				ignorePreservedUsernames: true,
 				approved: true,
 			});
+
+			if (me) {
+				await this.moderationLogService.log(me, 'createAccount', {
+					userId: account.id,
+					userUsername: account.username,
+				});
+			}
 
 			const res = await this.userEntityService.pack(account, account, {
 				schema: 'MeDetailed',

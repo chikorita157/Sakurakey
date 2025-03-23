@@ -21,6 +21,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 						</div>
 						<div class="_margin _gaps_s">
 							<MkRemoteCaution v-if="note.user.host != null" :href="note.url ?? note.uri"/>
+							<SkErrorList :errors="note.processErrors"/>
 							<MkNoteDetailed :key="note.id" v-model:note="note" :initialTab="initialTab" :class="$style.note" :expandAllCws="expandAllCws"/>
 						</div>
 						<div v-if="clips && clips.length > 0" class="_margin">
@@ -50,6 +51,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 <script lang="ts" setup>
 import { defineAsyncComponent, computed, watch, ref } from 'vue';
 import * as Misskey from 'misskey-js';
+import { host } from '@@/js/config.js';
 import type { Paging } from '@/components/MkPagination.vue';
 import MkNotes from '@/components/MkNotes.vue';
 import MkRemoteCaution from '@/components/MkRemoteCaution.vue';
@@ -59,16 +61,19 @@ import { definePageMetadata } from '@/scripts/page-metadata.js';
 import { i18n } from '@/i18n.js';
 import { dateString } from '@/filters/date.js';
 import MkClipPreview from '@/components/MkClipPreview.vue';
+import SkErrorList from '@/components/SkErrorList.vue';
 import { defaultStore } from '@/store.js';
 import { pleaseLogin } from '@/scripts/please-login.js';
-import { getServerContext } from '@/server-context.js';
+import { serverContext, assertServerContext } from '@/server-context.js';
+import { $i } from '@/account.js';
 
-const CTX_NOTE = getServerContext('note');
+// contextは非ログイン状態の情報しかないためログイン時は利用できない
+const CTX_NOTE = !$i && assertServerContext(serverContext, 'note') ? serverContext.note : null;
 
 const MkNoteDetailed = defineAsyncComponent(() =>
-	(defaultStore.state.noteDesign === 'misskey') ? import('@/components/MkNoteDetailed.vue') :
-	(defaultStore.state.noteDesign === 'sharkey') ? import('@/components/SkNoteDetailed.vue') :
-	null
+	(defaultStore.state.noteDesign === 'misskey')
+		? import('@/components/MkNoteDetailed.vue')
+		: import('@/components/SkNoteDetailed.vue'),
 );
 
 const props = defineProps<{
@@ -146,7 +151,12 @@ function fetchNote() {
 	}).catch(err => {
 		if (err.id === '8e75455b-738c-471d-9f80-62693f33372e') {
 			pleaseLogin({
+				path: '/',
 				message: i18n.ts.thisContentsAreMarkedAsSigninRequiredByAuthor,
+				openOnRemote: {
+					type: 'lookup',
+					url: `https://${host}/notes/${props.noteId}`,
+				},
 			});
 		}
 		error.value = err;

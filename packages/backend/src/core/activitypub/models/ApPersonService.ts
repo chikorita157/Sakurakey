@@ -39,8 +39,8 @@ import { bindThis } from '@/decorators.js';
 import { RoleService } from '@/core/RoleService.js';
 import { DriveFileEntityService } from '@/core/entities/DriveFileEntityService.js';
 import type { AccountMoveService } from '@/core/AccountMoveService.js';
-import { checkHttps } from '@/misc/check-https.js';
-import { getApId, getApType, getOneApHrefNullable, isActor, isCollection, isCollectionOrOrderedCollection, isPropertyValue } from '../type.js';
+import { ApUtilityService } from '@/core/activitypub/ApUtilityService.js';
+import { getApId, getApType, isActor, isCollection, isCollectionOrOrderedCollection, isPropertyValue } from '../type.js';
 import { extractApHashtags } from './tag.js';
 import type { OnModuleInit } from '@nestjs/common';
 import type { ApNoteService } from './ApNoteService.js';
@@ -106,6 +106,7 @@ export class ApPersonService implements OnModuleInit {
 		private followingsRepository: FollowingsRepository,
 
 		private roleService: RoleService,
+		private readonly apUtilityService: ApUtilityService,
 	) {
 	}
 
@@ -346,21 +347,11 @@ export class ApPersonService implements OnModuleInit {
 
 		const bday = person['vcard:bday']?.match(/^\d{4}-\d{2}-\d{2}/);
 
-		const url = getOneApHrefNullable(person.url);
-
 		if (person.id == null) {
 			throw new UnrecoverableError(`Refusing to create person without id: ${uri}`);
 		}
 
-		if (url != null) {
-			if (!checkHttps(url)) {
-				throw new UnrecoverableError(`unexpected schema of person url ${url} in ${uri}`);
-			}
-
-			if (this.utilityService.punyHostPSLDomain(url) !== this.utilityService.punyHostPSLDomain(person.id)) {
-				throw new UnrecoverableError(`person url <> uri host mismatch: ${url} <> ${person.id} in ${uri}`);
-			}
-		}
+		const url = this.apUtilityService.findBestObjectUrl(person);
 
 		// Create user
 		let user: MiRemoteUser | null = null;
@@ -398,7 +389,7 @@ export class ApPersonService implements OnModuleInit {
 					alsoKnownAs: person.alsoKnownAs,
 					// We use "!== false" to handle incorrect types, missing / null values, and "default to true" logic.
 					hideOnlineStatus: person.hideOnlineStatus !== false,
-					isExplorable: person.discoverable,
+					isExplorable: person.discoverable !== false,
 					username: person.preferredUsername,
 					approved: true,
 					usernameLower: person.preferredUsername?.toLowerCase(),
@@ -447,7 +438,7 @@ export class ApPersonService implements OnModuleInit {
 					await transactionalEntityManager.save(new MiUserPublickey({
 						userId: user.id,
 						keyId: person.publicKey.id,
-						keyPem: person.publicKey.publicKeyPem,
+						keyPem: person.publicKey.publicKeyPem.trim(),
 					}));
 				}
 			});
@@ -566,21 +557,11 @@ export class ApPersonService implements OnModuleInit {
 
 		const bday = person['vcard:bday']?.match(/^\d{4}-\d{2}-\d{2}/);
 
-		const url = getOneApHrefNullable(person.url);
-
 		if (person.id == null) {
 			throw new UnrecoverableError(`Refusing to update person without id: ${uri}`);
 		}
 
-		if (url != null) {
-			if (!checkHttps(url)) {
-				throw new UnrecoverableError(`unexpected schema of person url ${url} in ${uri}`);
-			}
-
-			if (this.utilityService.punyHostPSLDomain(url) !== this.utilityService.punyHostPSLDomain(person.id)) {
-				throw new UnrecoverableError(`person url <> uri host mismatch: ${url} <> ${person.id} in ${uri}`);
-			}
-		}
+		const url = this.apUtilityService.findBestObjectUrl(person);
 
 		const updates = {
 			lastFetchedAt: new Date(),
@@ -602,7 +583,7 @@ export class ApPersonService implements OnModuleInit {
 			alsoKnownAs: person.alsoKnownAs ?? null,
 			// We use "!== false" to handle incorrect types, missing / null values, and "default to true" logic.
 			hideOnlineStatus: person.hideOnlineStatus !== false,
-			isExplorable: person.discoverable,
+			isExplorable: person.discoverable !== false,
 			...(await this.resolveAvatarAndBanner(exist, person.icon, person.image, person.backgroundUrl).catch(() => ({}))),
 		} as Partial<MiRemoteUser> & Pick<MiRemoteUser, 'isBot' | 'isCat' | 'speakAsCat' | 'isLocked' | 'movedToUri' | 'alsoKnownAs' | 'isExplorable'>;
 

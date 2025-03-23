@@ -37,6 +37,10 @@ export interface Locale extends ILocale {
      */
     "search": string;
     /**
+     * リセット
+     */
+    "reset": string;
+    /**
      * 通知
      */
     "notifications": string;
@@ -210,6 +214,10 @@ export interface Locale extends ILocale {
      * リンクをコピー
      */
     "copyLink": string;
+    /**
+     * リモートのリンクをコピー
+     */
+    "copyRemoteLink": string;
     /**
      * Copy boost link
      */
@@ -1395,7 +1403,7 @@ export interface Locale extends ILocale {
      */
     "inputNewFileName": string;
     /**
-     * 新しいキャプションを入力してください
+     * Enter new alt text
      */
     "inputNewDescription": string;
     /**
@@ -2595,11 +2603,11 @@ export interface Locale extends ILocale {
      */
     "description": string;
     /**
-     * キャプションを付ける
+     * Add alt text
      */
     "describeFile": string;
     /**
-     * キャプションを入力
+     * Enter alt text
      */
     "enterFileDescription": string;
     /**
@@ -2755,9 +2763,21 @@ export interface Locale extends ILocale {
      */
     "wordMute": string;
     /**
+     * 指定した語句を含むノートを最小化します。最小化されたノートをクリックすることで表示することができます。
+     */
+    "wordMuteDescription": string;
+    /**
      * ハードワードミュート
      */
     "hardWordMute": string;
+    /**
+     * ミュートされたワードを表示
+     */
+    "showMutedWord": string;
+    /**
+     * 指定した語句を含むノートを隠します。ワードミュートとは異なり、ノートは完全に表示されなくなります。
+     */
+    "hardWordMuteDescription": string;
     /**
      * 正規表現エラー
      */
@@ -2774,6 +2794,10 @@ export interface Locale extends ILocale {
      * {name}が何かを言いました
      */
     "userSaysSomething": ParameterizedString<"name">;
+    /**
+     * {name}が「{word}」について何かを言いました
+     */
+    "userSaysSomethingAbout": ParameterizedString<"name" | "word">;
     /**
      * アクティブにする
      */
@@ -4060,7 +4084,7 @@ export interface Locale extends ILocale {
      */
     "windowRestore": string;
     /**
-     * キャプション
+     * Alt text
      */
     "caption": string;
     /**
@@ -4172,7 +4196,7 @@ export interface Locale extends ILocale {
      */
     "invalidParamError": string;
     /**
-     * リクエストパラメータに問題があります。通常これはバグですが、入力した文字数が多すぎる等の可能性もあります。
+     * リクエストパラメータに問題があります。通常これはバグですが、入力した文字数が多すぎる・許可されていない文字を入力している等の可能性もあります。
      */
     "invalidParamErrorDescription": string;
     /**
@@ -5223,6 +5247,14 @@ export interface Locale extends ILocale {
      * 注意事項を理解した上でオンにします。
      */
     "acknowledgeNotesAndEnable": string;
+    /**
+     * このサーバーはホワイトリスト連合で運用されています。管理者が指定したサーバー以外とやり取りすることはできません。
+     */
+    "federationSpecified": string;
+    /**
+     * このサーバーは連合が無効化されています。他のサーバーのユーザーとやり取りすることはできません。
+     */
+    "federationDisabled": string;
     "_accountSettings": {
         /**
          * コンテンツの表示にログインを必須にする
@@ -8507,6 +8539,38 @@ export interface Locale extends ILocale {
          */
         "write:report-abuse": string;
         /**
+         * Approve new users
+         */
+        "write:admin:approve-user": string;
+        /**
+         * Decline new users
+         */
+        "write:admin:decline-user": string;
+        /**
+         * Mark users as NSFW
+         */
+        "write:admin:nsfw-user": string;
+        /**
+         * Mark users an not NSFW
+         */
+        "write:admin:unnsfw-user": string;
+        /**
+         * Apply mandatory CW on users
+         */
+        "write:admin:cw-user": string;
+        /**
+         * Silence users
+         */
+        "write:admin:silence-user": string;
+        /**
+         * Un-silence users
+         */
+        "write:admin:unsilence-user": string;
+        /**
+         * Allow/Prohibit quote posts from a user
+         */
+        "write:admin:reject-quotes": string;
+        /**
          * View your list of scheduled notes
          */
         "read:notes-schedule": string;
@@ -9001,6 +9065,14 @@ export interface Locale extends ILocale {
          */
         "followedMessageDescriptionForLockedAccount": string;
         /**
+         * Update avatar
+         */
+        "updateAvatar": string;
+        /**
+         * Remove avatar
+         */
+        "removeAvatar": string;
+        /**
          * Update banner
          */
         "updateBanner": string;
@@ -9020,6 +9092,10 @@ export interface Locale extends ILocale {
          * Remove background
          */
         "removeBackground": string;
+        /**
+         * ListenBrainz username
+         */
+        "listenbrainz": string;
     };
     "_exportOrImport": {
         /**
@@ -9260,18 +9336,6 @@ export interface Locale extends ILocale {
          * ソースを表示中
          */
         "readPage": string;
-        /**
-         * ページを作成しました
-         */
-        "created": string;
-        /**
-         * ページを更新しました
-         */
-        "updated": string;
-        /**
-         * ページを削除しました
-         */
-        "deleted": string;
         /**
          * ページ設定
          */
@@ -10167,6 +10231,14 @@ export interface Locale extends ILocale {
          */
         "approve": string;
         /**
+         * Declined
+         */
+        "decline": string;
+        /**
+         * Set content warning for user
+         */
+        "setMandatoryCW": string;
+        /**
          * Set remote instance as NSFW
          */
         "setRemoteInstanceNSFW": string;
@@ -10182,6 +10254,74 @@ export interface Locale extends ILocale {
          * Accepted reports from remote instance
          */
         "acceptRemoteInstanceReports": string;
+        /**
+         * Blocked/Stripped quote posts from user
+         */
+        "rejectQuotesUser": string;
+        /**
+         * Allowed quote posts from user
+         */
+        "allowQuotesUser": string;
+        /**
+         * Cleared a user's drive files
+         */
+        "clearUserFiles": string;
+        /**
+         * Marked user as NSFW
+         */
+        "nsfwUser": string;
+        /**
+         * Un-marked user as NSFW
+         */
+        "unNsfwUser": string;
+        /**
+         * Silenced user
+         */
+        "silenceUser": string;
+        /**
+         * Un-silenced user
+         */
+        "unSilenceUser": string;
+        /**
+         * Created an account
+         */
+        "createAccount": string;
+        /**
+         * Cleared remote drive files
+         */
+        "clearRemoteFiles": string;
+        /**
+         * Cleared owner-less drive files
+         */
+        "clearOwnerlessFiles": string;
+        /**
+         * Updated custom emojis
+         */
+        "updateCustomEmojis": string;
+        /**
+         * Imported custom emojis
+         */
+        "importCustomEmojis": string;
+        /**
+         * Cleared an instance's drive files
+         */
+        "clearInstanceFiles": string;
+        /**
+         * Severed follow relations with an instance
+         */
+        "severFollowRelations": string;
+        /**
+         * Created a note promo
+         */
+        "createPromo": string;
+        /**
+         * Added a relay
+         */
+        "addRelay": string;
+        /**
+         * Removed a relay
+         */
+        "removeRelay": string;
     };
     "_fileViewer": {
         /**
@@ -10675,6 +10815,227 @@ export interface Locale extends ILocale {
          */
         "native": string;
     };
+    "_gridComponent": {
+        "_error": {
+            /**
+             * この値は必須項目です
+             */
+            "requiredValue": string;
+            /**
+             * 正規表現によるバリデーションはtype:textのカラムのみサポートします。
+             */
+            "columnTypeNotSupport": string;
+            /**
+             * この値は{pattern}のパターンに一致しません
+             */
+            "patternNotMatch": ParameterizedString<"pattern">;
+            /**
+             * この値は一意である必要があります
+             */
+            "notUnique": string;
+        };
+    };
+    "_roleSelectDialog": {
+        /**
+         * 選択されていません
+         */
+        "notSelected": string;
+    };
+    "_customEmojisManager": {
+        "_gridCommon": {
+            /**
+             * 選択行をコピー
+             */
+            "copySelectionRows": string;
+            /**
+             * 選択範囲をコピー
+             */
+            "copySelectionRanges": string;
+            /**
+             * 選択行を削除
+             */
+            "deleteSelectionRows": string;
+            /**
+             * 選択範囲の値をクリア
+             */
+            "deleteSelectionRanges": string;
+            /**
+             * 検索設定
+             */
+            "searchSettings": string;
+            /**
+             * 検索条件を詳細に設定します。
+             */
+            "searchSettingCaption": string;
+            /**
+             * 表示件数
+             */
+            "searchLimit": string;
+            /**
+             * 並び順
+             */
+            "sortOrder": string;
+            /**
+             * 登録ログ
+             */
+            "registrationLogs": string;
+            /**
+             * 絵文字更新・削除時のログが表示されます。更新・削除操作を行ったり、ページを遷移・リロードすると消えます。
+             */
+            "registrationLogsCaption": string;
+            /**
+             * 絵文字の更新・削除に失敗しました。詳細は登録ログをご確認ください。
+             */
+            "alertEmojisRegisterFailedDescription": string;
+        };
+        "_logs": {
+            /**
+             * 成功ログを表示
+             */
+            "showSuccessLogSwitch": string;
+            /**
+             * 失敗ログはありません。
+             */
+            "failureLogNothing": string;
+            /**
+             * ログはありません。
+             */
+            "logNothing": string;
+        };
+        "_remote": {
+            /**
+             * 選択行の詳細
+             */
+            "selectionRowDetail": string;
+            /**
+             * 選択行をインポート
+             */
+            "importSelectionRows": string;
+            /**
+             * 選択範囲の行をインポート
+             */
+            "importSelectionRangesRows": string;
+            /**
+             * チェックされた絵文字をインポート
+             */
+            "importEmojisButton": string;
+            /**
+             * 絵文字のインポート
+             */
+            "confirmImportEmojisTitle": string;
+            /**
+             * リモートから受信した{count}個の絵文字のインポートを行います。絵文字のライセンスに十分な注意を払ってください。実行しますか？
+             */
+            "confirmImportEmojisDescription": ParameterizedString<"count">;
+        };
+        "_local": {
+            /**
+             * 登録済み絵文字一覧
+             */
+            "tabTitleList": string;
+            /**
+             * 絵文字の登録
+             */
+            "tabTitleRegister": string;
+            "_list": {
+                /**
+                 * 登録された絵文字はありません。
+                 */
+                "emojisNothing": string;
+                /**
+                 * 選択行を削除対象にする
+                 */
+                "markAsDeleteTargetRows": string;
+                /**
+                 * 選択範囲の行を削除対象にする
+                 */
+                "markAsDeleteTargetRanges": string;
+                /**
+                 * 変更された絵文字はありません。
+                 */
+                "alertUpdateEmojisNothingDescription": string;
+                /**
+                 * 削除対象の絵文字はありません。
+                 */
+                "alertDeleteEmojisNothingDescription": string;
+                /**
+                 * ページを移動しますか？
+                 */
+                "confirmMovePage": string;
+                /**
+                 * 表示を変更しますか？
+                 */
+                "confirmChangeView": string;
+                /**
+                 * {count}個の絵文字を更新します。実行しますか？
+                 */
+                "confirmUpdateEmojisDescription": ParameterizedString<"count">;
+                /**
+                 * チェックがつけられた{count}個の絵文字を削除します。実行しますか？
+                 */
+                "confirmDeleteEmojisDescription": ParameterizedString<"count">;
+                /**
+                 * 今までに加えた変更がすべてリセットされます。
+                 */
+                "confirmResetDescription": string;
+                /**
+                 * このページの絵文字に変更が加えられています。
+                 * 保存せずにこのままページを移動すると、このページで加えた変更はすべて破棄されます。
+                 */
+                "confirmMovePageDesciption": string;
+                /**
+                 * 絵文字に設定されたロールで検索
+                 */
+                "dialogSelectRoleTitle": string;
+            };
+            "_register": {
+                /**
+                 * アップロード設定
+                 */
+                "uploadSettingTitle": string;
+                /**
+                 * この画面で絵文字アップロードを行う際の動作を設定できます。
+                 */
+                "uploadSettingDescription": string;
+                /**
+                 * ディレクトリ名を"category"に入力する
+                 */
+                "directoryToCategoryLabel": string;
+                /**
+                 * ディレクトリをドラッグ・ドロップした時に、ディレクトリ名を"category"に入力します。
+                 */
+                "directoryToCategoryCaption": string;
+                /**
+                 * いずれかの方法で登録する絵文字を選択してください。
+                 */
+                "emojiInputAreaCaption": string;
+                /**
+                 * この枠に画像ファイルまたはディレクトリをドラッグ＆ドロップ
+                 */
+                "emojiInputAreaList1": string;
+                /**
+                 * このリンクをクリックしてPCから選択する
+                 */
+                "emojiInputAreaList2": string;
+                /**
+                 * このリンクをクリックしてドライブから選択する
+                 */
+                "emojiInputAreaList3": string;
+                /**
+                 * リストに表示されている絵文字を新たなカスタム絵文字として登録します。よろしいですか？（負荷を避けるため、一度の操作で登録可能な絵文字は{count}件までです）
+                 */
+                "confirmRegisterEmojisDescription": ParameterizedString<"count">;
+                /**
+                 * 編集内容を破棄し、リストに表示されている絵文字をクリアします。よろしいですか？
+                 */
+                "confirmClearEmojisDescription": string;
+                /**
+                 * ドラッグ＆ドロップされた{count}個のファイルをドライブにアップロードします。実行しますか？
+                 */
+                "confirmUploadEmojisDescription": ParameterizedString<"count">;
+            };
+        };
+    };
     "_embedCodeGen": {
         /**
          * 埋め込みコードをカスタマイズ
@@ -10761,6 +11122,108 @@ export interface Locale extends ILocale {
          */
         "sent": string;
     };
+    "_remoteLookupErrors": {
+        "_federationNotAllowed": {
+            /**
+             * このサーバーとは通信できません
+             */
+            "title": string;
+            /**
+             * このサーバーとの通信が無効化されているか、このサーバーをブロックしている・ブロックされている可能性があります。
+             * サーバー管理者にお問い合わせください。
+             */
+            "description": string;
+        };
+        "_uriInvalid": {
+            /**
+             * URIが不正です
+             */
+            "title": string;
+            /**
+             * 入力されたURIに問題があります。URIに使用できない文字を入力していないか確認してください。
+             */
+            "description": string;
+        };
+        "_requestFailed": {
+            /**
+             * リクエストに失敗しました
+             */
+            "title": string;
+            /**
+             * このサーバーとの通信に失敗しました。相手サーバーがダウンしている可能性があります。また、不正なURIや存在しないURIを入力していないか確認してください。
+             */
+            "description": string;
+        };
+        "_responseInvalid": {
+            /**
+             * レスポンスが不正です
+             */
+            "title": string;
+            /**
+             * このサーバーと通信することはできましたが、得られたデータが不正なものでした。
+             */
+            "description": string;
+        };
+        "_responseInvalidIdHostNotMatch": {
+            /**
+             * 入力されたURIのドメインと最終的に得られたURIのドメインとが異なります。第三者のサーバーを介してリモートのコンテンツを照会している場合は、発信元のサーバーで取得できるURIを使用して照会し直してください。
+             */
+            "description": string;
+        };
+        "_noSuchObject": {
+            /**
+             * 見つかりません
+             */
+            "title": string;
+            /**
+             * 要求されたリソースは見つかりませんでした。URIをもう一度お確かめください。
+             */
+            "description": string;
+        };
+    };
+    "_captcha": {
+        /**
+         * CAPTCHAを通過してください
+         */
+        "verify": string;
+        /**
+         * サイトキーとシークレットキーにテスト用の値を入力することでプレビューを確認できます。
+         * 詳細は下記ページをご確認ください。
+         */
+        "testSiteKeyMessage": string;
+        "_error": {
+            "_requestFailed": {
+                /**
+                 * CAPTCHAのリクエストに失敗しました
+                 */
+                "title": string;
+                /**
+                 * しばらく後に実行するか、設定をもう一度ご確認ください。
+                 */
+                "text": string;
+            };
+            "_verificationFailed": {
+                /**
+                 * CAPTCHAの検証に失敗しました
+                 */
+                "title": string;
+                /**
+                 * 設定が正しいかどうかもう一度確認ください。
+                 */
+                "text": string;
+            };
+            "_unknown": {
+                /**
+                 * CAPTCHAエラー
+                 */
+                "title": string;
+                /**
+                 * 想定外のエラーが発生しました。
+                 */
+                "text": string;
+            };
+        };
+    };
     /**
      * Approvals
      */
@@ -10805,6 +11268,10 @@ export interface Locale extends ILocale {
      * Date
      */
     "date": string;
+    /**
+     * Boost (hold Shift for visibility menu)
+     */
+    "renoteShift": string;
     /**
      * Quoted.
      */
@@ -10853,6 +11320,26 @@ export interface Locale extends ILocale {
      * Reject reports from this instance
      */
     "rejectReports": string;
+    /**
+     * Strip quote posts from this instance
+     */
+    "rejectQuotesInstance": string;
+    /**
+     * Strip quote posts from this user
+     */
+    "rejectQuotesRemoteUser": string;
+    /**
+     * Block quote posts from this user
+     */
+    "rejectQuotesLocalUser": string;
+    /**
+     * Are you sure you wish to strip quote posts?
+     */
+    "rejectQuotesConfirm": string;
+    /**
+     * Are you sure you wish to allow quote posts?
+     */
+    "allowQuotesConfirm": string;
     /**
      * This host is blocked implicitly because a base domain is blocked. To unblock this host, first unblock the base domain(s).
      */
@@ -11151,6 +11638,10 @@ export interface Locale extends ILocale {
      */
     "pendingFollowRequests": string;
     /**
+     * Are you sure you want to cancel your follow request?
+     */
+    "undoFollowRequestConfirm": string;
+    /**
      * Show quotes
      */
     "showQuotes": string;
@@ -11182,6 +11673,18 @@ export interface Locale extends ILocale {
      * Flash
      */
     "flash": string;
+    /**
+     * Files removed
+     */
+    "filesRemoved": string;
+    /**
+     * File imported
+     */
+    "fileImported": string;
+    /**
+     * Failed to load note
+     */
+    "cannotLoadNote": string;
     "_flash": {
         /**
          * Flash Content Hidden
@@ -11526,6 +12029,14 @@ export interface Locale extends ILocale {
          */
         "backgroundDescription": string;
         /**
+         * Border
+         */
+        "border": string;
+        /**
+         * Draw a border around the content.
+         */
+        "borderDescription": string;
+        /**
          * Plain
          */
         "plain": string;
@@ -11610,6 +12121,172 @@ export interface Locale extends ILocale {
      * Scheduled Notes
      */
     "scheduledNotes": string;
+    /**
+     * Custom robots.txt
+     */
+    "robotsTxt": string;
+    /**
+     * Adding entries here will override the default robots.txt packaged with Sharkey.
+     */
+    "robotsTxtDescription": string;
+    /**
+     * Default content warning for new posts
+     */
+    "defaultCW": string;
+    /**
+     * The value here will be auto-filled as the content warning for all new posts and replies.
+     */
+    "defaultCWDescription": string;
+    /**
+     * Automatic CW priority
+     */
+    "defaultCWPriority": string;
+    /**
+     * Select preferred action when default CW and keep CW settings are both enabled at the same time.
+     */
+    "defaultCWPriorityDescription": string;
+    "_defaultCWPriority": {
+        /**
+         * Use Default (use the default CW, ignoring the inherited CW)
+         */
+        "default": string;
+        /**
+         * Use Parent (use the inherited CW, ignoring the default CW)
+         */
+        "parent": string;
+        /**
+         * Use Default, then Parent (use the default CW, and append the inherited CW)
+         */
+        "defaultParent": string;
+        /**
+         * Use Parent, then Default (use the inherited CW, and append the default CW)
+         */
+        "parentDefault": string;
+    };
+    /**
+     * Generate Keys
+     */
+    "genKeys": string;
+    "_genKeysDialog": {
+        /**
+         * Are you sure that you want to generate new keys? This will stop push notifications for all users who have already enabled them.
+         */
+        "text": string;
+        /**
+         * Generate new keys
+         */
+        "title": string;
+    };
+    "_noteSearch": {
+        /**
+         * Sort by newest to oldest
+         */
+        "newestToOldest": string;
+        /**
+         * File Type
+         */
+        "fileType": string;
+        "_fileType": {
+            /**
+             * None
+             */
+            "none": string;
+            /**
+             * Images
+             */
+            "image": string;
+            /**
+             * Videos
+             */
+            "video": string;
+            /**
+             * Audio
+             */
+            "audio": string;
+            /**
+             * Module
+             */
+            "module": string;
+            /**
+             * Flash
+             */
+            "flash": string;
+        };
+    };
+    /**
+     * ID
+     */
+    "id": string;
+    /**
+     * Force content warning
+     */
+    "mandatoryCW": string;
+    /**
+     * Applies a content warning to all posts created by this user. If the post already has a CW, then this is appended to the end.
+     */
+    "mandatoryCWDescription": string;
+    /**
+     * Fetch linked note
+     */
+    "fetchLinkedNote": string;
+    "_processErrors": {
+        /**
+         * Unable to process quote. This post may be missing context.
+         */
+        "quoteUnavailable": string;
+    };
+    /**
+     * Authorized Fetch
+     */
+    "authorizedFetchSection": string;
+    /**
+     * Allow unsigned ActivityPub requests:
+     */
+    "authorizedFetchLabel": string;
+    /**
+     * This setting controls the behavior when a remote instance or user attempts to access your content without verifying their identity. If disabled, any remote user can access your profile and posts - even one who has been blocked or defederated.
+     */
+    "authorizedFetchDescription": string;
+    "_authorizedFetchValue": {
+        /**
+         * Never
+         */
+        "never": string;
+        /**
+         * Always
+         */
+        "always": string;
+        /**
+         * Only for essential metadata
+         */
+        "essential": string;
+        /**
+         * Use staff recommendation
+         */
+        "staff": string;
+    };
+    "_authorizedFetchValueDescription": {
+        /**
+         * Block all unsigned requests. Improves privacy and makes blocks more effective, but is not compatible with some very old or uncommon instance software.
+         */
+        "never": string;
+        /**
+         * Allow all unsigned requests. Provides the greatest compatibility with other instances, but reduces privacy and weakens blocks.
+         */
+        "always": string;
+        /**
+         * Allow some limited unsigned requests. Provides a hybrid between "Never" and "Always" by exposing only the minimum profile metadata that is required for federation with older software.
+         */
+        "essential": string;
+        /**
+         * Use the default value of "{value}" recommended by the instance staff.
+         */
+        "staff": ParameterizedString<"value">;
+    };
+    /**
+     * The configuration property 'checkActivityPubGetSignature' has been deprecated and replaced with the new Authorized Fetch setting. Please remove it from your configuration file.
+     */
+    "authorizedFetchLegacyWarning": string;
 }
 declare const locales: {
     [lang: string]: Locale;

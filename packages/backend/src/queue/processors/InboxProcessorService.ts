@@ -25,10 +25,14 @@ import { JsonLdService } from '@/core/activitypub/JsonLdService.js';
 import { ApInboxService } from '@/core/activitypub/ApInboxService.js';
 import { bindThis } from '@/decorators.js';
 import { IdentifiableError } from '@/misc/identifiable-error.js';
-import { CollapsedQueue } from '@/misc/collapsed-queue.js';
-import { MiNote } from '@/models/Note.js';
+//import { CollapsedQueue } from '@/misc/collapsed-queue.js';
+//import { MiNote } from '@/models/Note.js';
 import { MiMeta } from '@/models/Meta.js';
 import { DI } from '@/di-symbols.js';
+import { SkApInboxLog } from '@/models/_.js';
+import type { Config } from '@/config.js';
+import { ApLogService, calculateDurationSince } from '@/core/ApLogService.js';
+import { UpdateInstanceQueue } from '@/core/UpdateInstanceQueue.js';
 import { QueueLoggerService } from '../QueueLoggerService.js';
 import type { InboxJobData } from '../types.js';
 
@@ -40,11 +44,14 @@ type UpdateInstanceJob = {
 @Injectable()
 export class InboxProcessorService implements OnApplicationShutdown {
 	private logger: Logger;
-	private updateInstanceQueue: CollapsedQueue<MiNote['id'], UpdateInstanceJob>;
+	//private updateInstanceQueue: CollapsedQueue<MiNote['id'], UpdateInstanceJob>;
 
 	constructor(
 		@Inject(DI.meta)
 		private meta: MiMeta,
+
+		@Inject(DI.config)
+		private config: Config,
 
 		private utilityService: UtilityService,
 		private apInboxService: ApInboxService,
@@ -57,13 +64,50 @@ export class InboxProcessorService implements OnApplicationShutdown {
 		private apRequestChart: ApRequestChart,
 		private federationChart: FederationChart,
 		private queueLoggerService: QueueLoggerService,
+		private readonly apLogService: ApLogService,
+		private readonly updateInstanceQueue: UpdateInstanceQueue,
 	) {
 		this.logger = this.queueLoggerService.logger.createSubLogger('inbox');
-		this.updateInstanceQueue = new CollapsedQueue(process.env.NODE_ENV !== 'test' ? 60 * 1000 * 5 : 0, this.collapseUpdateInstanceJobs, this.performUpdateInstance);
+		//this.updateInstanceQueue = new CollapsedQueue(process.env.NODE_ENV !== 'test' ? 60 * 1000 * 5 : 0, this.collapseUpdateInstanceJobs, this.performUpdateInstance);
 	}
 
 	@bindThis
 	public async process(job: Bull.Job<InboxJobData>): Promise<string> {
+		if (this.config.activityLogging.enabled) {
+			return await this._processLogged(job);
+		} else {
+			return await this._process(job);
+		}
+	}
+
+	private async _processLogged(job: Bull.Job<InboxJobData>): Promise<string> {
+		const startTime = process.hrtime.bigint();
+		const activity = job.data.activity;
+		const keyId = job.data.signature.keyId;
+		const log = await this.apLogService.createInboxLog({ activity, keyId });
+
+		try {
+			const result = await this._process(job, log);
+
+			log.accepted = result.startsWith('ok');
+			log.result = result;
+
+			return result;
+		} catch (err) {
+			log.accepted = false;
+			log.result = String(err);
+
+			throw err;
+		} finally {
+			log.duration = calculateDurationSince(startTime);
+
+			// Save or finalize asynchronously
+			this.apLogService.saveInboxLog(log)
+				.catch(err => this.logger.error('Failed to record AP activity:', err));
+		}
+	}
+
+	private async _process(job: Bull.Job<InboxJobData>, log?: SkApInboxLog): Promise<string> {
 		const signature = job.data.signature;	// HTTP-signature
 		let activity = job.data.activity;
 
@@ -190,11 +234,18 @@ export class InboxProcessorService implements OnApplicationShutdown {
 			const signerHost = this.utilityService.extractDbHost(authUser.user.uri!);
 			const activityIdHost = this.utilityService.extractDbHost(activity.id);
 			if (signerHost !== activityIdHost) {
-				throw new Bull.UnrecoverableError(`skip: signerHost(${signerHost}) !== activity.id host(${activityIdHost}`);
+				throw new Bull.UnrecoverableError(`skip: signerHost(${signerHost}) !== activity.id host(${activityIdHost})`);
 			}
 		} else {
 			// Activity ID should only be string or undefined.
 			delete activity.id;
+		}
+
+		// Record verified user in log
+		if (log) {
+			log.verified = true;
+			log.authUser = authUser.user;
+			log.authUserId = authUser.user.id;
 		}
 
 		this.apRequestChart.inbox();
@@ -248,6 +299,14 @@ export class InboxProcessorService implements OnApplicationShutdown {
 				return `skip: permanent error ${e.statusCode}`;
 			}
 
+			if (e instanceof IdentifiableError && !e.isRetryable) {
+				if (e.message) {
+					return `skip: permanent error ${e.id}: ${e.message}`;
+				} else {
+					return `skip: permanent error ${e.id}`;
+				}
+			}
+
 			throw e;
 		}
 		return 'ok';
@@ -276,9 +335,7 @@ export class InboxProcessorService implements OnApplicationShutdown {
 	}
 
 	@bindThis
-	public async dispose(): Promise<void> {
-		await this.updateInstanceQueue.performAllNow();
-	}
+	public async dispose(): Promise<void> {}
 
 	@bindThis
 	async onApplicationShutdown(signal?: string) {

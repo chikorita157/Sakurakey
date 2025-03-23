@@ -11,14 +11,13 @@ import { DI } from '@/di-symbols.js';
 import type { Config } from '@/config.js';
 import type { MiUser } from '@/models/User.js';
 import { UserKeypairService } from '@/core/UserKeypairService.js';
-import { UtilityService } from '@/core/UtilityService.js';
+import { ApUtilityService } from '@/core/activitypub/ApUtilityService.js';
 import { HttpRequestService } from '@/core/HttpRequestService.js';
 import { LoggerService } from '@/core/LoggerService.js';
 import { bindThis } from '@/decorators.js';
 import type Logger from '@/logger.js';
 import { validateContentTypeSetAsActivityPub } from '@/core/activitypub/misc/validator.js';
-import { assertActivityMatchesUrls } from '@/core/activitypub/misc/check-against-url.js';
-import type { IObject } from './type.js';
+import type { IObject, IObjectWithId } from './type.js';
 
 type Request = {
 	url: string;
@@ -148,7 +147,7 @@ export class ApRequestService {
 		private userKeypairService: UserKeypairService,
 		private httpRequestService: HttpRequestService,
 		private loggerService: LoggerService,
-		private utilityService: UtilityService,
+		private readonly apUtilityService: ApUtilityService,
 	) {
 		// eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
 		this.logger = this.loggerService?.getLogger('ap-request'); // なぜか TypeError: Cannot read properties of undefined (reading 'getLogger') と言われる
@@ -183,9 +182,10 @@ export class ApRequestService {
 	 * Get AP object with http-signature
 	 * @param user http-signature user
 	 * @param url URL to fetch
+	 * @param followAlternate
 	 */
 	@bindThis
-	public async signedGet(url: string, user: { id: MiUser['id'] }, followAlternate?: boolean): Promise<unknown> {
+	public async signedGet(url: string, user: { id: MiUser['id'] }, followAlternate?: boolean): Promise<IObjectWithId> {
 		const _followAlternate = followAlternate ?? true;
 		const keypair = await this.userKeypairService.getUserKeypair(user.id);
 
@@ -239,13 +239,22 @@ export class ApRequestService {
 			try {
 				document.documentElement.innerHTML = html;
 
-				const alternate = document.querySelector('head > link[rel="alternate"][type="application/activity+json"]');
+				// Search for any matching value in priority order:
+				// 1. Type=AP > Type=none > Type=anything
+				// 2. Alternate > Canonical
+				// 3. Page order (fallback)
+				const alternate =
+					document.querySelector('head > link[href][rel="alternate"][type="application/activity+json"]') ??
+					document.querySelector('head > link[href][rel="canonical"][type="application/activity+json"]') ??
+					document.querySelector('head > link[href][rel="alternate"]:not([type])') ??
+					document.querySelector('head > link[href][rel="canonical"]:not([type])') ??
+					document.querySelector('head > link[href][rel="alternate"]') ??
+					document.querySelector('head > link[href][rel="canonical"]');
+
 				if (alternate) {
 					const href = alternate.getAttribute('href');
-					if (href) {
-						if (this.utilityService.punyHostPSLDomain(url) === this.utilityService.punyHostPSLDomain(href)) {
-							return await this.signedGet(href, user, false);
-						}
+					if (href && this.apUtilityService.haveSameAuthority(url, href)) {
+						return await this.signedGet(href, user, false);
 					}
 				}
 			} catch (e) {
@@ -258,11 +267,12 @@ export class ApRequestService {
 
 		validateContentTypeSetAsActivityPub(res);
 
-		const finalUrl = res.url; // redirects may have been involved
 		const activity = await res.json() as IObject;
 
-		assertActivityMatchesUrls(activity, [finalUrl]);
+		// Make sure the object ID matches the final URL (which is where it actually exists).
+		// The caller (ApResolverService) will verify the ID against the original / entry URL, which ensures that all three match.
+		this.apUtilityService.assertIdMatchesUrlAuthority(activity, res.url);
 
-		return activity;
+		return activity as IObjectWithId;
 	}
 }

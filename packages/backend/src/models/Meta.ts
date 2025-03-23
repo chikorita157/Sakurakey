@@ -4,6 +4,7 @@
  */
 
 import { Entity, Column, PrimaryColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { type InstanceUnsignedFetchOption, instanceUnsignedFetchOptions } from '@/const.js';
 import { id } from './util/id.js';
 import { MiUser } from './User.js';
 
@@ -407,6 +408,18 @@ export class MiMeta {
 		length: 1024,
 		nullable: true,
 	})
+	public libreTranslateURL: string | null;
+
+	@Column('varchar', {
+		length: 1024,
+		nullable: true,
+	})
+	public libreTranslateKey: string | null;
+
+	@Column('varchar', {
+		length: 1024,
+		nullable: true,
+	})
 	public termsOfServiceUrl: string | null;
 
 	@Column('varchar', {
@@ -599,6 +612,11 @@ export class MiMeta {
 	})
 	public enableAchievements: boolean;
 
+	@Column('varchar', {
+		length: 2048, nullable: true,
+	})
+	public robotsTxt: string | null;
+
 	@Column('jsonb', {
 		default: { },
 	})
@@ -732,4 +750,14 @@ export class MiMeta {
 		default: '{}',
 	})
 	public federationHosts: string[];
+
+	/**
+	 * In combination with user.allowUnsignedFetch, controls enforcement of HTTP signatures for inbound ActivityPub fetches (GET requests).
+	 * TODO warning if config value is present
+	 */
+	@Column('enum', {
+		enum: instanceUnsignedFetchOptions,
+		default: 'always',
+	})
+	public allowUnsignedFetch: InstanceUnsignedFetchOption;
 }

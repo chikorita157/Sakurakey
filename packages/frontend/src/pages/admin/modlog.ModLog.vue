@@ -18,15 +18,27 @@ SPDX-License-Identifier: AGPL-3.0-only
 					'createAvatarDecoration',
 					'createSystemWebhook',
 					'createAbuseReportNotificationRecipient',
+					'createAccount',
+					'importCustomEmojis',
+					'createPromo',
+					'addRelay',
 				].includes(log.type),
 				[$style.logYellow]: [
 					'markSensitiveDriveFile',
 					'resetPassword',
+					'setMandatoryCW',
 					'suspendRemoteInstance',
 					'setRemoteInstanceNSFW',
 					'unsetRemoteInstanceNSFW',
 					'rejectRemoteInstanceReports',
 					'acceptRemoteInstanceReports',
+					'rejectQuotesUser',
+					'acceptQuotesUser',
+					'nsfwUser',
+					'unNsfwUser',
+					'silenceUser',
+					'unSilenceUser',
+					'updateCustomEmojis',
 				].includes(log.type),
 				[$style.logRed]: [
 					'suspend',
@@ -46,15 +58,26 @@ SPDX-License-Identifier: AGPL-3.0-only
 					'deletePage',
 					'deleteFlash',
 					'deleteGalleryPost',
+					'clearUserFiles',
+					'clearRemoteFiles',
+					'clearOwnerlessFiles',
+					'clearInstanceFiles',
+					'severFollowRelations',
+					'removeRelay',
 				].includes(log.type)
 			}"
 		>{{ i18n.ts._moderationLogTypes[log.type] }}</b>
 		<span v-if="log.type === 'updateUserNote'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
 		<span v-else-if="log.type === 'suspend'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
 		<span v-else-if="log.type === 'approve'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
+		<span v-else-if="log.type === 'rejectQuotesUser'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
+		<span v-else-if="log.type === 'acceptQuotesUser'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
+		<span v-else-if="log.type === 'rejectQuotesInstance'">: {{ log.info.host }}</span>
+		<span v-else-if="log.type === 'acceptQuotesInstance'">: {{ log.info.host }}</span>
 		<span v-else-if="log.type === 'decline'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
 		<span v-else-if="log.type === 'unsuspend'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
 		<span v-else-if="log.type === 'resetPassword'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
+		<span v-else-if="log.type === 'setMandatoryCW'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
 		<span v-else-if="log.type === 'assignRole'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }} <i class="ti ti-arrow-right"></i> {{ log.info.roleName }}</span>
 		<span v-else-if="log.type === 'unassignRole'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }} <i class="ti ti-equal-not"></i> {{ log.info.roleName }}</span>
 		<span v-else-if="log.type === 'createRole'">: {{ log.info.role.name }}</span>
@@ -92,8 +115,21 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<span v-else-if="log.type === 'deletePage'">: @{{ log.info.pageUserUsername }}</span>
 		<span v-else-if="log.type === 'deleteFlash'">: @{{ log.info.flashUserUsername }}</span>
 		<span v-else-if="log.type === 'deleteGalleryPost'">: @{{ log.info.postUserUsername }}</span>
+		<span v-else-if="log.type === 'clearUserFiles'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
+		<span v-else-if="log.type === 'nsfwUser'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
+		<span v-else-if="log.type === 'unNsfwUser'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
+		<span v-else-if="log.type === 'silenceUser'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
+		<span v-else-if="log.type === 'unSilenceUser'">: @{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</span>
+		<span v-else-if="log.type === 'createAccount'">: @{{ log.info.userUsername }}</span>
+		<span v-else-if="log.type === 'clearOwnerlessFiles'">: {{ log.info.count }}</span>
+		<span v-else-if="log.type === 'importCustomEmojis'">: {{ log.info.fileName }}</span>
+		<span v-else-if="log.type === 'clearInstanceFiles'">: {{ log.info.host }}</span>
+		<span v-else-if="log.type === 'severFollowRelations'">: {{ log.info.host }}</span>
+		<span v-else-if="log.type === 'createPromo'">: @{{ log.info.noteUserUsername }}{{ log.info.noteUserHost ? '@' + log.info.noteUserHost : '' }}</span>
+		<span v-else-if="log.type === 'addRelay'">: {{ log.info.inbox }}</span>
+		<span v-else-if="log.type === 'removeRelay'">: {{ log.info.inbox }}</span>
 	</template>
-	<template #icon>
+	<template v-if="log.user" #icon>
 		<MkAvatar :user="log.user" :class="$style.avatar"/>
 	</template>
 	<template #suffix>
@@ -123,7 +159,19 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<template v-else-if="log.type === 'approve'">
 			<div>{{ i18n.ts.user }}: <MkA :to="`/admin/user/${log.info.userId}`" class="_link">@{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</MkA></div>
 		</template>
+		<template v-else-if="log.type === 'setMandatoryCW'">
+			<div>{{ i18n.ts.user }}: <MkA :to="`/admin/user/${log.info.userId}`" class="_link">@{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</MkA></div>
+			<div :class="$style.diff">
+				<CodeDiff :context="0" :hideHeader="true" :oldString="log.info.oldCW ?? ''" :newString="log.info.newCW ?? ''" maxHeight="150px"/>
+			</div>
+		</template>
 		<template v-else-if="log.type === 'unsuspend'">
+			<div>{{ i18n.ts.user }}: <MkA :to="`/admin/user/${log.info.userId}`" class="_link">@{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</MkA></div>
+		</template>
+		<template v-else-if="log.type === 'rejectQuotesUser'">
+			<div>{{ i18n.ts.user }}: <MkA :to="`/admin/user/${log.info.userId}`" class="_link">@{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</MkA></div>
+		</template>
+		<template v-else-if="log.type === 'acceptQuotesUser'">
 			<div>{{ i18n.ts.user }}: <MkA :to="`/admin/user/${log.info.userId}`" class="_link">@{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</MkA></div>
 		</template>
 		<template v-else-if="log.type === 'updateRole'">
@@ -185,6 +233,47 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<CodeDiff :context="5" :hideHeader="true" :oldString="log.info.before ?? ''" :newString="log.info.after ?? ''" maxHeight="300px"/>
 			</div>
 		</template>
+		<template v-else-if="log.type === 'clearUserFiles'">
+			<div>{{ i18n.ts.user }}: <MkA :to="`/admin/user/${log.info.userId}`" class="_link">@{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</MkA></div>
+			<div>{{ i18n.ts.filesRemoved }}: {{ log.info.count }}</div>
+		</template>
+		<template v-else-if="log.type === 'nsfwUser'">
+			<div>{{ i18n.ts.user }}: <MkA :to="`/admin/user/${log.info.userId}`" class="_link">@{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</MkA></div>
+		</template>
+		<template v-else-if="log.type === 'unNsfwUser'">
+			<div>{{ i18n.ts.user }}: <MkA :to="`/admin/user/${log.info.userId}`" class="_link">@{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</MkA></div>
+		</template>
+		<template v-else-if="log.type === 'silenceUser'">
+			<div>{{ i18n.ts.user }}: <MkA :to="`/admin/user/${log.info.userId}`" class="_link">@{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</MkA></div>
+		</template>
+		<template v-else-if="log.type === 'unSilenceUser'">
+			<div>{{ i18n.ts.user }}: <MkA :to="`/admin/user/${log.info.userId}`" class="_link">@{{ log.info.userUsername }}{{ log.info.userHost ? '@' + log.info.userHost : '' }}</MkA></div>
+		</template>
+		<template v-else-if="log.type === 'createAccount'">
+			<div>{{ i18n.ts.user }}: <MkA :to="`/admin/user/${log.info.userId}`" class="_link">@{{ log.info.userUsername }}</MkA></div>
+		</template>
+		<template v-else-if="log.type === 'clearOwnerlessFiles'">
+			<div>{{ i18n.ts.filesRemoved }}: {{ log.info.count }}</div>
+		</template>
+		<template v-else-if="log.type === 'importCustomEmojis'">
+			<div>{{ i18n.ts.fileImported }}: {{ log.info.fileName }}</div>
+		</template>
+		<template v-else-if="log.type === 'clearInstanceFiles'">
+			<div>{{ i18n.ts.host }}: <MkA :to="`/instance-info/${log.info.host}`" class="_link">{{ log.info.host }}</MkA></div>
+			<div>{{ i18n.ts.filesRemoved }}: {{ log.info.count }}</div>
+		</template>
+		<template v-else-if="log.type === 'severFollowRelations'">
+			<div>{{ i18n.ts.host }}: <MkA :to="`/instance-info/${log.info.host}`" class="_link">{{ log.info.host }}</MkA></div>
+		</template>
+		<template v-else-if="log.type === 'createPromo'">
+			<SkFetchNote :noteId="log.info.noteId"/>
+		</template>
+		<template v-else-if="log.type === 'addRelay'">
+			<div>{{ i18n.ts.inboxUrl }}: {{ log.info.inbox }}</div>
+		</template>
+		<template v-else-if="log.type === 'removeRelay'">
+			<div>{{ i18n.ts.inboxUrl }}: {{ log.info.inbox }}</div>
+		</template>
 
 		<details>
 			<summary>raw</summary>
@@ -200,6 +289,7 @@ import { CodeDiff } from 'v-code-diff';
 import JSON5 from 'json5';
 import { i18n } from '@/i18n.js';
 import MkFolder from '@/components/MkFolder.vue';
+import SkFetchNote from '@/components/SkFetchNote.vue';
 
 const props = defineProps<{
 	log: Misskey.entities.ModerationLog;

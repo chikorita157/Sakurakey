@@ -4,12 +4,8 @@ import type {
 	Ad,
 	Announcement,
 	EmojiDetailed,
-	Flash,
-	GalleryPost,
 	InviteCode,
 	MetaDetailed,
-	Note,
-	Page,
 	Role,
 	ReversiGameDetailed,
 	SystemWebhook,
@@ -83,11 +79,13 @@ export const permissions = [
 	'write:admin:decline-user',
 	'write:admin:nsfw-user',
 	'write:admin:unnsfw-user',
+	'write:admin:cw-user',
 	'write:admin:silence-user',
 	'write:admin:unsilence-user',
 	'write:admin:unset-user-avatar',
 	'write:admin:unset-user-banner',
 	'write:admin:unsuspend-user',
+	'write:admin:reject-quotes',
 	'write:admin:meta',
 	'write:admin:user-note',
 	'write:admin:roles',
@@ -124,6 +122,7 @@ export const moderationLogTypes = [
 	'updateServerSettings',
 	'suspend',
 	'approve',
+	'decline',
 	'unsuspend',
 	'updateUserNote',
 	'addCustomEmoji',
@@ -145,8 +144,13 @@ export const moderationLogTypes = [
 	'deleteGlobalAnnouncement',
 	'deleteUserAnnouncement',
 	'resetPassword',
+	'setMandatoryCW',
+	'setRemoteInstanceNSFW',
+	'unsetRemoteInstanceNSFW',
 	'suspendRemoteInstance',
 	'unsuspendRemoteInstance',
+	'rejectRemoteInstanceReports',
+	'acceptRemoteInstanceReports',
 	'updateRemoteInstanceNote',
 	'markSensitiveDriveFile',
 	'unmarkSensitiveDriveFile',
@@ -186,7 +190,14 @@ export const reversiUpdateKeys = [
 
 export type ReversiUpdateKey = typeof reversiUpdateKeys[number];
 
-type AvatarDecoration = UserLite['avatarDecorations'][number];
+interface AvatarDecoration {
+	id: string;
+	updatedAt: string | null;
+	url: string;
+	name: string;
+	description: string;
+	roleIdsThatCanBeUsedThisDecoration: string[];
+}
 
 type ReceivedAbuseReport = {
 	reportId: AbuseReportNotificationRecipient['id'];
@@ -280,7 +291,6 @@ export type ModerationLogPayloads = {
 		noteUserId: string;
 		noteUserUsername: string;
 		noteUserHost: string | null;
-		note: Note;
 	};
 	createGlobalAnnouncement: {
 		announcementId: string;
@@ -322,11 +332,34 @@ export type ModerationLogPayloads = {
 		userUsername: string;
 		userHost: string | null;
 	};
+	setMandatoryCW: {
+		newCW: string | null;
+		oldCW: string | null;
+		userId: string;
+		userUsername: string;
+		userHost: string | null;
+	};
+	setRemoteInstanceNSFW: {
+		id: string;
+		host: string;
+	};
+	unsetRemoteInstanceNSFW: {
+		id: string;
+		host: string;
+	};
 	suspendRemoteInstance: {
 		id: string;
 		host: string;
 	};
 	unsuspendRemoteInstance: {
+		id: string;
+		host: string;
+	};
+	rejectRemoteInstanceReports: {
+		id: string;
+		host: string;
+	};
+	acceptRemoteInstanceReports: {
 		id: string;
 		host: string;
 	};
@@ -440,18 +473,98 @@ export type ModerationLogPayloads = {
 		pageId: string;
 		pageUserId: string;
 		pageUserUsername: string;
-		page: Page;
 	};
 	deleteFlash: {
 		flashId: string;
 		flashUserId: string;
 		flashUserUsername: string;
-		flash: Flash;
 	};
 	deleteGalleryPost: {
 		postId: string;
 		postUserId: string;
 		postUserUsername: string;
-		post: GalleryPost;
+	};
+	acceptQuotesUser: {
+		userId: string,
+		userUsername: string,
+		userHost: string | null,
+	};
+	rejectQuotesUser: {
+		userId: string,
+		userUsername: string,
+		userHost: string | null,
+	};
+	acceptQuotesInstance: {
+		id: string;
+		host: string;
+	};
+	rejectQuotesInstance: {
+		id: string;
+		host: string;
+	};
+
+	clearUserFiles: {
+		userId: string;
+		userUsername: string;
+		userHost: string | null;
+		count: number;
+	};
+	nsfwUser: {
+		userId: string;
+		userUsername: string;
+		userHost: string | null;
+	};
+	unNsfwUser: {
+		userId: string;
+		userUsername: string;
+		userHost: string | null;
+	};
+	silenceUser: {
+		userId: string;
+		userUsername: string;
+		userHost: string | null;
+	};
+	unSilenceUser: {
+		userId: string;
+		userUsername: string;
+		userHost: string | null;
+	};
+	createAccount: {
+		userId: string;
+		userUsername: string;
+	};
+	clearRemoteFiles: Record<string, never>;
+	clearOwnerlessFiles: {
+		count: number;
+	};
+	updateCustomEmojis: {
+		ids: string[],
+		category?: string | null,
+		license?: string | null,
+		setAliases?: string[],
+		addAliases?: string[],
+		delAliases?: string[],
+	};
+	importCustomEmojis: {
+		fileName: string,
+	};
+	clearInstanceFiles: {
+		host: string;
+		count: number;
+	};
+	severFollowRelations: {
+		host: string;
+	};
+	createPromo: {
+		noteId: string,
+		noteUserId: string;
+		noteUserUsername: string;
+		noteUserHost: string | null;
+	};
+	addRelay: {
+		inbox: string;
+	};
+	removeRelay: {
+		inbox: string;
 	};
 };

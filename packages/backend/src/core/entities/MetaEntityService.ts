@@ -95,6 +95,7 @@ export class MetaEntityService {
 			mcaptchaInstanceUrl: instance.mcaptchaInstanceUrl,
 			enableRecaptcha: instance.enableRecaptcha,
 			enableAchievements: instance.enableAchievements,
+			robotsTxt: instance.robotsTxt,
 			recaptchaSiteKey: instance.recaptchaSiteKey,
 			enableTurnstile: instance.enableTurnstile,
 			turnstileSiteKey: instance.turnstileSiteKey,
@@ -134,7 +135,7 @@ export class MetaEntityService {
 			enableEmail: instance.enableEmail,
 			enableServiceWorker: instance.enableServiceWorker,
 
-			translatorAvailable: instance.deeplAuthKey != null || instance.deeplFreeMode && instance.deeplFreeInstance != null,
+			translatorAvailable: instance.deeplAuthKey != null || instance.libreTranslateURL != null || instance.deeplFreeMode && instance.deeplFreeInstance != null,
 
 			serverRules: instance.serverRules,
 
@@ -144,6 +145,7 @@ export class MetaEntityService {
 			enableUrlPreview: instance.urlPreviewEnabled,
 			noteSearchableScope: (this.config.meilisearch == null || this.config.meilisearch.scope !== 'local') ? 'global' : 'local',
 			maxFileSize: this.config.maxFileSize,
+			federation: this.meta.federation,
 		};
 
 		return packed;
@@ -179,8 +181,10 @@ export class MetaEntityService {
 				serviceWorker: instance.enableServiceWorker,
 				miauth: true,
 			},
+			allowUnsignedFetch: instance.allowUnsignedFetch,
 		};
 
 		return packDetailed;
 	}
 }
+

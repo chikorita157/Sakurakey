@@ -33,6 +33,7 @@ import type { Config } from '@/config.js';
 import { safeForSql } from '@/misc/safe-for-sql.js';
 import { AvatarDecorationService } from '@/core/AvatarDecorationService.js';
 import { notificationRecieveConfig } from '@/models/json-schema/user.js';
+import { userUnsignedFetchOptions } from '@/const.js';
 import { ApiLoggerService } from '../../ApiLoggerService.js';
 import { ApiError } from '../../error.js';
 
@@ -132,6 +133,12 @@ export const meta = {
 			code: 'YOUR_NAME_CONTAINS_PROHIBITED_WORDS',
 			id: '0b3f9f6a-2f4d-4b1f-9fb4-49d3a2fd7191',
 			httpStatusCode: 422,
+		},
+
+		maxCwLength: {
+			message: 'You tried setting a default content warning which is too long.',
+			code: 'MAX_CW_LENGTH',
+			id: '7004c478-bda3-4b4f-acb2-4316398c9d52',
 		},
 	},
 
@@ -242,6 +249,17 @@ export const paramDef = {
 			maxItems: 10,
 			uniqueItems: true,
 			items: { type: 'string' },
+		},
+		defaultCW: { type: 'string', nullable: true },
+		defaultCWPriority: {
+			type: 'string',
+			enum: ['default', 'parent', 'defaultParent', 'parentDefault'],
+			nullable: false,
+		},
+		allowUnsignedFetch: {
+			type: 'string',
+			enum: userUnsignedFetchOptions,
+			nullable: false,
 		},
 	},
 } as const;
@@ -494,6 +512,23 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 				updates.alsoKnownAs = newAlsoKnownAs.size > 0 ? Array.from(newAlsoKnownAs) : null;
 			}
 
+			let defaultCW = ps.defaultCW;
+			if (defaultCW !== undefined) {
+				if (defaultCW === '') defaultCW = null;
+				if (defaultCW && defaultCW.length > this.config.maxCwLength) {
+					throw new ApiError(meta.errors.maxCwLength);
+				}
+
+				profileUpdates.defaultCW = defaultCW;
+			}
+			if (ps.defaultCWPriority !== undefined) {
+				profileUpdates.defaultCWPriority = ps.defaultCWPriority;
+			}
+
+			if (ps.allowUnsignedFetch !== undefined) {
+				updates.allowUnsignedFetch = ps.allowUnsignedFetch;
+			}
+
 			//#region emojis/tags
 
 			let emojis = [] as string[];
@@ -592,7 +627,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			const html = await this.httpRequestService.getHtml(url);
 
 			const { window } = new JSDOM(html);
-			const doc = window.document;
+			const doc: Document = window.document;
 
 			const myLink = `${this.config.url}/@${user.username}`;
 

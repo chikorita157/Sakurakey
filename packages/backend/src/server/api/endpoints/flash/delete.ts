@@ -4,13 +4,13 @@
  */
 
 import { Inject, Injectable } from '@nestjs/common';
+import ms from 'ms';
 import type { FlashsRepository, UsersRepository } from '@/models/_.js';
 import { Endpoint } from '@/server/api/endpoint-base.js';
 import { DI } from '@/di-symbols.js';
 import { ModerationLogService } from '@/core/ModerationLogService.js';
 import { RoleService } from '@/core/RoleService.js';
 import { ApiError } from '../../error.js';
-import ms from 'ms';
 
 export const meta = {
 	tags: ['flashs'],
@@ -78,7 +78,6 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 					flashId: flash.id,
 					flashUserId: flash.userId,
 					flashUserUsername: user.username,
-					flash,
 				});
 			}
 		});

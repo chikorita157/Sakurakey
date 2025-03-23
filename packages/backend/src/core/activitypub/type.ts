@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-import { UnrecoverableError } from 'bullmq';
+import { IdentifiableError } from '@/misc/identifiable-error.js';
 import { fromTuple } from '@/misc/from-tuple.js';
 
 export type Obj = { [x: string]: any };
@@ -26,7 +26,7 @@ export interface IObject {
 	attributedTo?: ApObject;
 	attachment?: any[];
 	inReplyTo?: any;
-	replies?: ICollection;
+	replies?: ICollection | IOrderedCollection | string;
 	content?: string | null;
 	startTime?: Date;
 	endTime?: Date;
@@ -37,6 +37,10 @@ export interface IObject {
 	href?: string;
 	tag?: IObject | IObject[];
 	sensitive?: boolean;
+}
+
+export interface IObjectWithId extends IObject {
+	id: string;
 }
 
 /**
@@ -65,7 +69,7 @@ export function getApId(value: string | IObject | [string | IObject]): string {
 
 	if (typeof value === 'string') return value;
 	if (typeof value.id === 'string') return value.id;
-	throw new UnrecoverableError('cannot determine id');
+	throw new IdentifiableError('ad2dc287-75c1-44c4-839d-3d2e64576675', `invalid AP object ${value}: missing id`);
 }
 
 /**
@@ -125,6 +129,8 @@ export interface ICollection extends IObject {
 	type: 'Collection';
 	totalItems: number;
 	first?: IObject | string;
+	last?: IObject | string;
+	current?: IObject | string;
 	items?: ApObject;
 }
 
@@ -132,6 +138,32 @@ export interface IOrderedCollection extends IObject {
 	type: 'OrderedCollection';
 	totalItems: number;
 	first?: IObject | string;
+	last?: IObject | string;
+	current?: IObject | string;
+	orderedItems?: ApObject;
+}
+
+export interface ICollectionPage extends IObject {
+	type: 'CollectionPage';
+	totalItems: number;
+	first?: IObject | string;
+	last?: IObject | string;
+	current?: IObject | string;
+	partOf?: IObject | string;
+	next?: IObject | string;
+	prev?: IObject | string;
+	items?: ApObject;
+}
+
+export interface IOrderedCollectionPage extends IObject {
+	type: 'OrderedCollectionPage';
+	totalItems: number;
+	first?: IObject | string;
+	last?: IObject | string;
+	current?: IObject | string;
+	partOf?: IObject | string;
+	next?: IObject | string;
+	prev?: IObject | string;
 	orderedItems?: ApObject;
 }
 
@@ -202,7 +234,7 @@ export interface IActor extends IObject {
 	manuallyApprovesFollowers?: boolean;
 	movedTo?: string;
 	alsoKnownAs?: string[];
-	discoverable?: boolean;
+	discoverable?: boolean | null;
 	inbox: string;
 	sharedInbox?: string;	// 後方互換性のため
 	publicKey?: {
@@ -231,8 +263,14 @@ export const isCollection = (object: IObject): object is ICollection =>
 export const isOrderedCollection = (object: IObject): object is IOrderedCollection =>
 	getApType(object) === 'OrderedCollection';
 
+export const isCollectionPage = (object: IObject): object is ICollectionPage =>
+	getApType(object) === 'CollectionPage';
+
+export const isOrderedCollectionPage = (object: IObject): object is IOrderedCollectionPage =>
+	getApType(object) === 'OrderedCollectionPage';
+
 export const isCollectionOrOrderedCollection = (object: IObject): object is ICollection | IOrderedCollection =>
-	isCollection(object) || isOrderedCollection(object);
+	isCollection(object) || isOrderedCollection(object) || isCollectionPage(object) || isOrderedCollectionPage(object);
 
 export interface IApPropertyValue extends IObject {
 	type: 'PropertyValue';
@@ -270,6 +308,11 @@ export interface IApEmoji extends IObject {
 	type: 'Emoji';
 	name: string;
 	updated: string;
+	// Misskey拡張。後方互換性のためにoptional。
+	// 将来の拡張性を考慮してobjectにしている
+	_misskey_license?: {
+		freeText: string | null;
+	};
 }
 
 export const isEmoji = (object: IObject): object is IApEmoji =>
@@ -285,6 +328,8 @@ export const validDocumentTypes = ['Audio', 'Document', 'Image', 'Page', 'Video'
 
 export interface IApDocument extends IObject {
 	type: 'Audio' | 'Document' | 'Image' | 'Page' | 'Video';
+	width?: number;
+	height?: number;
 }
 
 export const isDocument = (object: IObject): object is IApDocument => {
@@ -361,6 +406,13 @@ export interface IMove extends IActivity {
 	type: 'Move';
 	target: IObject | string;
 }
+
+export const validActivityTypes = ['Announce', 'Create', 'Update', 'Delete', 'Undo', 'Follow', 'Accept', 'Reject', 'Add', 'Remove', 'Like', 'Dislike', 'EmojiReaction', 'EmojiReact', 'Flag', 'Block', 'Move'];
+
+export const isActivity = (object: IObject): object is IActivity => {
+	const type = getApType(object);
+	return type != null && validActivityTypes.includes(type);
+};
 
 export const isApObject = (object: string | IObject): object is IObject => typeof(object) === 'object';
 export const isCreate = (object: IObject): object is ICreate => getApType(object) === 'Create';

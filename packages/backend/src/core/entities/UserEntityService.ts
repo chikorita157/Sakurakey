@@ -49,11 +49,13 @@ import { IdService } from '@/core/IdService.js';
 import type { AnnouncementService } from '@/core/AnnouncementService.js';
 import type { CustomEmojiService } from '@/core/CustomEmojiService.js';
 import { AvatarDecorationService } from '@/core/AvatarDecorationService.js';
+import { isSystemAccount } from '@/misc/is-system-account.js';
 import type { OnModuleInit } from '@nestjs/common';
 import type { NoteEntityService } from './NoteEntityService.js';
 import type { DriveFileEntityService } from './DriveFileEntityService.js';
 import type { PageEntityService } from './PageEntityService.js';
-import { isSystemAccount } from '@/misc/is-system-account.js';
+
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 const Ajv = _Ajv.default;
 const ajv = new Ajv();
@@ -590,6 +592,8 @@ export class UserEntityService implements OnModuleInit {
 			isCat: user.isCat,
 			noindex: user.noindex,
 			enableRss: user.enableRss,
+			mandatoryCW: user.mandatoryCW,
+			rejectQuotes: user.rejectQuotes,
 			isSilenced: user.isSilenced || this.roleService.getUserPolicies(user.id).then(r => !r.canPublicNote),
 			speakAsCat: user.speakAsCat ?? false,
 			approved: user.approved,
@@ -719,6 +723,9 @@ export class UserEntityService implements OnModuleInit {
 				achievements: profile!.achievements,
 				loggedInDays: profile!.loggedInDates.length,
 				policies: this.roleService.getUserPolicies(user.id),
+				defaultCW: profile!.defaultCW,
+				defaultCWPriority: profile!.defaultCWPriority,
+				allowUnsignedFetch: user.allowUnsignedFetch,
 			} : {}),
 
 			...(opts.includeSecrets ? {

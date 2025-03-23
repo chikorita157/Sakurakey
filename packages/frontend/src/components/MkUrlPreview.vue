@@ -44,8 +44,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 	</div>
 </template>
 <div v-else-if="theNote" :class="[$style.link, { [$style.compact]: compact }]"><XNoteSimple :note="theNote" :class="$style.body"/></div>
-<div v-else>
-	<component :is="self ? 'MkA' : 'a'" :class="[$style.link, { [$style.compact]: compact }]" :[attr]="self ? url.substring(local.length) : url" rel="nofollow noopener" :target="target" :title="url">
+<div v-else-if="!hidePreview">
+	<component :is="self ? 'MkA' : 'a'" :class="[$style.link, { [$style.compact]: compact }]" :[attr]="self ? url.substring(local.length) : url" rel="nofollow noopener" :target="target" :title="url" @click.prevent="self ? true : warningExternalWebsite(url)" @click.stop>
 		<div v-if="thumbnail && !sensitive" :class="$style.thumbnail" :style="defaultStore.state.dataSaver.urlPreview ? '' : `background-image: url('${thumbnail}')`">
 		</div>
 		<article :class="$style.body">
@@ -71,6 +71,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 				<i class="ti ti-brand-x"></i> {{ i18n.ts.expandTweet }}
 			</MkButton>
 		</div>
+		<div v-if="showAsQuote && activityPub && !theNote && !fetchingTheNote" :class="$style.action">
+			<MkButton :small="true" inline @click="fetchNote()">
+				<i class="ti ti-note"></i> {{ i18n.ts.fetchLinkedNote }}
+			</MkButton>
+		</div>
 		<div v-if="!playerEnabled && player.url" :class="$style.action">
 			<MkButton :small="true" inline @click="playerEnabled = true">
 				<i class="ti ti-player-play"></i> {{ i18n.ts.enablePlayer }}
@@ -87,20 +92,23 @@ SPDX-License-Identifier: AGPL-3.0-only
 import { defineAsyncComponent, onDeactivated, onUnmounted, ref, watch } from 'vue';
 import { url as local } from '@@/js/config.js';
 import { versatileLang } from '@@/js/intl-const.js';
+import * as Misskey from 'misskey-js';
 import type { summaly } from '@misskey-dev/summaly';
+import type MkNoteSimple from '@/components/MkNoteSimple.vue';
+import type SkNoteSimple from '@/components/SkNoteSimple.vue';
 import { i18n } from '@/i18n.js';
 import * as os from '@/os.js';
 import { deviceKind } from '@/scripts/device-kind.js';
 import MkButton from '@/components/MkButton.vue';
 import { transformPlayerUrl } from '@/scripts/player-url-transform.js';
 import { defaultStore } from '@/store.js';
-import * as Misskey from 'misskey-js';
 import { misskeyApi } from '@/scripts/misskey-api.js';
+import { warningExternalWebsite } from '@/scripts/warning-external-website.js';
 
-const XNoteSimple = defineAsyncComponent(() =>
-	(defaultStore.state.noteDesign === 'misskey') ? import('@/components/MkNoteSimple.vue') :
-	(defaultStore.state.noteDesign === 'sharkey') ? import('@/components/SkNoteSimple.vue') :
-	null
+const XNoteSimple = defineAsyncComponent<typeof MkNoteSimple | typeof SkNoteSimple>(() =>
+	defaultStore.state.noteDesign === 'misskey'
+		? import('@/components/MkNoteSimple.vue')
+		: import('@/components/SkNoteSimple.vue'),
 );
 
 type SummalyResult = Awaited<ReturnType<typeof summaly>>;
@@ -111,16 +119,19 @@ const props = withDefaults(defineProps<{
 	compact?: boolean;
 	showAsQuote?: boolean;
 	showActions?: boolean;
+	skipNoteIds?: (string | undefined)[];
 }>(), {
 	detail: false,
 	compact: false,
 	showAsQuote: false,
 	showActions: true,
+	skipNoteIds: undefined,
 });
 
 const MOBILE_THRESHOLD = 500;
 const isMobile = ref(deviceKind === 'smartphone' || window.innerWidth <= MOBILE_THRESHOLD);
 
+const hidePreview = ref<boolean>(false);
 const self = props.url.startsWith(local);
 const attr = self ? 'to' : 'href';
 const target = self ? null : '_blank';
@@ -144,24 +155,38 @@ const embedId = `embed${Math.random().toString().replace(/\D/, '')}`;
 const tweetHeight = ref(150);
 const unknownUrl = ref(false);
 const theNote = ref<Misskey.entities.Note | null>(null);
+const fetchingTheNote = ref(false);
 
 onDeactivated(() => {
 	playerEnabled.value = false;
 });
 
-watch(activityPub, async (uri) => {
-		if (!props.showAsQuote) return;
-		if (!uri) return;
-		try {
-			const response = await misskeyApi('ap/show', { uri });
-			if (response.type !== 'Note') return;
-			theNote.value = response['object'];
-		} catch (err) {
-			if (_DEV_) {
-				console.error(`failed to extract note for preview of ${uri}`, err);
-			}
+async function fetchNote() {
+	if (!props.showAsQuote) return;
+	if (!activityPub.value) return;
+	if (theNote.value) return;
+	if (fetchingTheNote.value) return;
+
+	fetchingTheNote.value = true;
+	try {
+		const response = await misskeyApi('ap/show', { uri: activityPub.value });
+		if (response.type !== 'Note') return;
+		const theNoteId = response['object'].id;
+		if (theNoteId && props.skipNoteIds && props.skipNoteIds.includes(theNoteId)) {
+			hidePreview.value = true;
+			return;
 		}
-});
+		theNote.value = response['object'];
+		fetchingTheNote.value = false;
+	} catch (err) {
+		if (_DEV_) {
+			console.error(`failed to extract note for preview of ${activityPub.value}`, err);
+		}
+		activityPub.value = null;
+		fetchingTheNote.value = false;
+		theNote.value = null;
+	}
+}
 
 const requestUrl = new URL(props.url);
 if (!['http:', 'https:'].includes(requestUrl.protocol)) throw new Error('invalid url');
@@ -188,7 +213,7 @@ window.fetch(`/url?url=${encodeURIComponent(requestUrl.href)}&lang=${versatileLa
 
 		return res.json();
 	})
-	.then((info: SummalyResult | null) => {
+	.then((info: SummalyResult & { haveNoteLocally?: boolean } | null) => {
 		if (!info || info.url == null) {
 			fetching.value = false;
 			unknownUrl.value = true;
@@ -206,6 +231,9 @@ window.fetch(`/url?url=${encodeURIComponent(requestUrl.href)}&lang=${versatileLa
 		player.value = info.player;
 		sensitive.value = info.sensitive ?? false;
 		activityPub.value = info.activityPub;
+		if (info.haveNoteLocally) {
+			fetchNote();
+		}
 	});
 
 function adjustTweetHeight(message: MessageEvent) {

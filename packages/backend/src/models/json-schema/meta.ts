@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
+import { instanceUnsignedFetchOptions } from '@/const.js';
+
 export const packedMetaLiteSchema = {
 	type: 'object',
 	optional: false, nullable: false,
@@ -137,6 +139,10 @@ export const packedMetaLiteSchema = {
 		},
 		enableAchievements: {
 			type: 'boolean',
+			optional: false, nullable: true,
+		},
+		robotsTxt: {
+			type: 'string',
 			optional: false, nullable: true,
 		},
 		enableTestcaptcha: {
@@ -317,6 +323,11 @@ export const packedMetaLiteSchema = {
 			type: 'number',
 			optional: false, nullable: false,
 		},
+		federation: {
+			type: 'string',
+			enum: ['all', 'specified', 'none'],
+			optional: false, nullable: false,
+		},
 	},
 } as const;
 
@@ -386,6 +397,11 @@ export const packedMetaDetailedOnlySchema = {
 		},
 		cacheRemoteSensitiveFiles: {
 			type: 'boolean',
+			optional: false, nullable: false,
+		},
+		allowUnsignedFetch: {
+			type: 'string',
+			enum: instanceUnsignedFetchOptions,
 			optional: false, nullable: false,
 		},
 	},

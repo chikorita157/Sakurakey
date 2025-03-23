@@ -99,6 +99,9 @@ function generateDummyUser(override?: Partial<MiUser>): MiUser {
 		signupReason: null,
 		noindex: false,
 		enableRss: true,
+		mandatoryCW: null,
+		rejectQuotes: false,
+		allowUnsignedFetch: 'staff',
 		...override,
 	};
 }
@@ -142,6 +145,7 @@ function generateDummyNote(override?: Partial<MiNote>): MiNote {
 		renoteUserId: null,
 		renoteUserHost: null,
 		updatedAt: null,
+		processErrors: [],
 		...override,
 	};
 }
@@ -216,6 +220,7 @@ function toPackedUserLite(user: MiUser, override?: Packed<'UserLite'>): Packed<'
 		isSystem: false,
 		isSilenced: user.isSilenced,
 		enableRss: true,
+		mandatoryCW: null,
 		...override,
 	};
 }

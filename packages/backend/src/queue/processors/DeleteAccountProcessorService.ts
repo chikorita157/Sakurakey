@@ -6,7 +6,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { MoreThan } from 'typeorm';
 import { DI } from '@/di-symbols.js';
-import type { DriveFilesRepository, NoteReactionsRepository, NotesRepository, UserProfilesRepository, UsersRepository } from '@/models/_.js';
+import type { DriveFilesRepository, NoteReactionsRepository, NotesRepository, UserProfilesRepository, UsersRepository, NoteScheduleRepository, MiNoteSchedule } from '@/models/_.js';
 import type Logger from '@/logger.js';
 import { DriveService } from '@/core/DriveService.js';
 import type { MiDriveFile } from '@/models/DriveFile.js';
@@ -15,10 +15,12 @@ import type { MiNoteReaction } from '@/models/NoteReaction.js';
 import { EmailService } from '@/core/EmailService.js';
 import { bindThis } from '@/decorators.js';
 import { SearchService } from '@/core/SearchService.js';
+import { ApLogService } from '@/core/ApLogService.js';
+import { ReactionService } from '@/core/ReactionService.js';
 import { QueueLoggerService } from '../QueueLoggerService.js';
 import type * as Bull from 'bullmq';
 import type { DbUserDeleteJobData } from '../types.js';
-import { ReactionService } from '@/core/ReactionService.js';
+import { QueueService } from '@/core/QueueService.js';
 
 @Injectable()
 export class DeleteAccountProcessorService {
@@ -40,11 +42,16 @@ export class DeleteAccountProcessorService {
 		@Inject(DI.noteReactionsRepository)
 		private noteReactionsRepository: NoteReactionsRepository,
 
+		@Inject(DI.noteScheduleRepository)
+		private noteScheduleRepository: NoteScheduleRepository,
+
+		private queueService: QueueService,
 		private driveService: DriveService,
 		private emailService: EmailService,
 		private queueLoggerService: QueueLoggerService,
 		private searchService: SearchService,
 		private reactionService: ReactionService,
+		private readonly apLogService: ApLogService,
 	) {
 		this.logger = this.queueLoggerService.logger.createSubLogger('delete-account');
 	}
@@ -56,6 +63,22 @@ export class DeleteAccountProcessorService {
 		const user = await this.usersRepository.findOneBy({ id: job.data.user.id });
 		if (user == null) {
 			return;
+		}
+
+		{ // Delete scheduled notes
+			const scheduledNotes = await this.noteScheduleRepository.findBy({
+				userId: user.id,
+			}) as MiNoteSchedule[];
+
+			for (const note of scheduledNotes) {
+				await this.queueService.ScheduleNotePostQueue.remove(`schedNote:${note.id}`);
+			}
+
+			await this.noteScheduleRepository.delete({
+				userId: user.id,
+			});
+
+			this.logger.succ('All scheduled notes deleted');
 		}
 
 		{ // Delete notes
@@ -83,6 +106,13 @@ export class DeleteAccountProcessorService {
 
 				for (const note of notes) {
 					await this.searchService.unindexNote(note);
+				}
+
+				// Delete note AP logs
+				const noteUris = notes.map(n => n.uri).filter(u => !!u) as string[];
+				if (noteUris.length > 0) {
+					await this.apLogService.deleteObjectLogs(noteUris)
+						.catch(err => this.logger.error(err, `Failed to delete AP logs for notes of user '${user.uri ?? user.id}'`));
 				}
 			}
 
@@ -147,6 +177,13 @@ export class DeleteAccountProcessorService {
 			}
 
 			this.logger.succ('All of files deleted');
+		}
+
+		{ // Delete actor logs
+			if (user.uri) {
+				await this.apLogService.deleteObjectLogs(user.uri)
+					.catch(err => this.logger.error(err, `Failed to delete AP logs for user '${user.uri}'`));
+			}
 		}
 
 		{ // Send email notification

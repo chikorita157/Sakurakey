@@ -6,7 +6,7 @@
 import { Module } from '@nestjs/common';
 import { EndpointsModule } from '@/server/api/EndpointsModule.js';
 import { CoreModule } from '@/core/CoreModule.js';
-import { SkRateLimiterService } from '@/server/api/SkRateLimiterService.js';
+import { SkRateLimiterService } from '@/server/SkRateLimiterService.js';
 import { ApiCallService } from './api/ApiCallService.js';
 import { FileServerService } from './FileServerService.js';
 import { HealthServerService } from './HealthServerService.js';

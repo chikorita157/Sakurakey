@@ -4,13 +4,13 @@
  */
 
 import { Inject, Injectable } from '@nestjs/common';
+import ms from 'ms';
 import { Endpoint } from '@/server/api/endpoint-base.js';
 import type { GalleryPostsRepository, UsersRepository } from '@/models/_.js';
 import { DI } from '@/di-symbols.js';
 import { ModerationLogService } from '@/core/ModerationLogService.js';
 import { RoleService } from '@/core/RoleService.js';
 import { ApiError } from '../../../error.js';
-import ms from 'ms';
 
 export const meta = {
 	tags: ['gallery'],
@@ -78,7 +78,6 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 					postId: post.id,
 					postUserId: post.userId,
 					postUserUsername: user.username,
-					post,
 				});
 			}
 		});

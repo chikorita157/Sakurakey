@@ -176,6 +176,12 @@ export const meta = {
 			id: '33510210-8452-094c-6227-4a6c05d99f02',
 		},
 
+		quoteDisabledForUser: {
+			message: 'You do not have permission to create quote posts.',
+			code: 'QUOTE_DISABLED_FOR_USER',
+			id: '1c0ea108-d1e3-4e8e-aa3f-4d2487626153',
+		},
+
 		containsProhibitedWords: {
 			message: 'Cannot post because it contains prohibited words.',
 			code: 'CONTAINS_PROHIBITED_WORDS',
@@ -203,7 +209,7 @@ export const paramDef = {
 				format: 'misskey:id',
 			},
 		},
-		cw: { type: 'string', nullable: true, minLength: 1 },
+		cw: { type: 'string', nullable: true },
 		localOnly: { type: 'boolean', default: false },
 		reactionAcceptance: { type: 'string', nullable: true, enum: [null, 'likeOnly', 'likeOnlyForRemote', 'nonSensitiveOnly', 'nonSensitiveOnlyForLocalLikeOnlyForRemote'], default: null },
 		noExtractMentions: { type: 'boolean', default: false },
@@ -448,7 +454,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 					text: ps.text ?? undefined,
 					reply,
 					renote,
-					cw: ps.cw,
+					cw: ps.cw || null,
 					localOnly: ps.localOnly,
 					reactionAcceptance: ps.reactionAcceptance,
 					visibility: ps.visibility,
@@ -469,6 +475,8 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 						throw new ApiError(meta.errors.containsProhibitedWords);
 					} else if (e.id === '9f466dab-c856-48cd-9e65-ff90ff750580') {
 						throw new ApiError(meta.errors.containsTooManyMentions);
+					} else if (e.id === '1c0ea108-d1e3-4e8e-aa3f-4d2487626153') {
+						throw new ApiError(meta.errors.quoteDisabledForUser);
 					}
 				}
 				throw e;

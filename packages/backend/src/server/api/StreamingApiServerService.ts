@@ -18,15 +18,15 @@ import { CacheService } from '@/core/CacheService.js';
 import { MiLocalUser } from '@/models/User.js';
 import { UserService } from '@/core/UserService.js';
 import { ChannelFollowingService } from '@/core/ChannelFollowingService.js';
-import { RoleService } from '@/core/RoleService.js';
 import { getIpHash } from '@/misc/get-ip-hash.js';
 import { LoggerService } from '@/core/LoggerService.js';
-import { SkRateLimiterService } from '@/server/api/SkRateLimiterService.js';
+import { SkRateLimiterService } from '@/server/SkRateLimiterService.js';
 import { AuthenticateService, AuthenticationError } from './AuthenticateService.js';
 import MainStreamConnection from './stream/Connection.js';
 import { ChannelsService } from './stream/ChannelsService.js';
 import type * as http from 'node:http';
 import type { IEndpointMeta } from './endpoints.js';
+import type { Config } from "@/config.js";
 
 @Injectable()
 export class StreamingApiServerService {
@@ -49,30 +49,28 @@ export class StreamingApiServerService {
 		private usersService: UserService,
 		private channelFollowingService: ChannelFollowingService,
 		private rateLimiterService: SkRateLimiterService,
-		private roleService: RoleService,
 		private loggerService: LoggerService,
+
+		@Inject(DI.config)
+		private config: Config,
 	) {
 	}
 
 	@bindThis
 	private async rateLimitThis(
 		user: MiLocalUser | null | undefined,
-		requestIp: string | undefined,
+		requestIp: string,
 		limit: IEndpointMeta['limit'] & { key: NonNullable<string> },
 	) : Promise<boolean> {
-		let limitActor: string;
+		let limitActor: string | MiLocalUser;
 		if (user) {
-			limitActor = user.id;
+			limitActor = user;
 		} else {
-			limitActor = getIpHash(requestIp || 'wtf');
+			limitActor = getIpHash(requestIp);
 		}
 
-		const factor = user ? (await this.roleService.getUserPolicies(user.id)).rateLimitFactor : 1;
-
-		if (factor <= 0) return false;
-
 		// Rate limit
-		const rateLimit = await this.rateLimiterService.limit(limit, limitActor, factor);
+		const rateLimit = await this.rateLimiterService.limit(limit, limitActor);
 		return rateLimit.blocked;
 	}
 
@@ -80,6 +78,7 @@ export class StreamingApiServerService {
 	public attach(server: http.Server): void {
 		this.#wss = new WebSocket.WebSocketServer({
 			noServer: true,
+			perMessageDeflate: this.config.websocketCompression,
 		});
 
 		server.on('upgrade', async (request, socket, head) => {

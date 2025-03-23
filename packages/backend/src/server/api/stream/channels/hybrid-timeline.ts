@@ -26,12 +26,12 @@ class HybridTimelineChannel extends Channel {
 	constructor(
 		private metaService: MetaService,
 		private roleService: RoleService,
-		private noteEntityService: NoteEntityService,
+		noteEntityService: NoteEntityService,
 
 		id: string,
 		connection: Channel['connection'],
 	) {
-		super(id, connection);
+		super(id, connection, noteEntityService);
 		//this.onNote = this.onNote.bind(this);
 	}
 
@@ -98,24 +98,12 @@ class HybridTimelineChannel extends Channel {
 			}
 		}
 
-		const reactionsToFetch = [];
-		if (this.user && isRenotePacked(note) && !isQuotePacked(note)) {
-			if (note.renote) {
-				reactionsToFetch.push(this.assignMyReaction(note.renote, this.noteEntityService));
-				if (note.renote.reply) {
-					reactionsToFetch.push(this.assignMyReaction(note.renote.reply, this.noteEntityService));
-				}
-			}
-		}
-		if (this.user && note.reply) {
-			reactionsToFetch.push(this.assignMyReaction(note.reply, this.noteEntityService));
-		}
+		const clonedNote = await this.assignMyReaction(note);
+		await this.hideNote(clonedNote);
 
-		await Promise.all(reactionsToFetch);
+		this.connection.cacheNote(clonedNote);
 
-		this.connection.cacheNote(note);
-
-		this.send('note', note);
+		this.send('note', clonedNote);
 	}
 
 	@bindThis
