@@ -16,7 +16,6 @@
 * Only search public notes from non suspended/silenced servers and users.
 * "Home" visibility renamed to "Quiet Public" (matching Mastodon) and use the moon icon and Local/Defederated posts use the home icon
 * Sort Lists and Antennas (cherrypicked from [here](https://github.com/aliceif/misskey/commit/9969413adbb506d2076a4b33eb64f10643c59c73) by aliceif)
-* Add ElasticSearch support (cherrypicked from Misskey.io)
 
 <div>
 
