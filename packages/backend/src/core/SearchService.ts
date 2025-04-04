@@ -269,6 +269,7 @@ export class SearchService {
 		opts: SearchOpts,
 		pagination: SearchPagination,
 	): Promise<MiNote[]> {
+		const meta = await this.metaService.fetch(true);
 		const query = this.queryService.makePaginationQuery(this.notesRepository.createQueryBuilder('note'), pagination.sinceId, pagination.untilId);
 
 		if (opts.userId) {
@@ -303,7 +304,7 @@ export class SearchService {
 		if (opts.filetype) {
 			query.andWhere('note."attachedFileTypes" && :types', { types: fileTypes[opts.filetype] });
 		}
-
+		query.andWhere('note.visibility = \'public\'');
 		this.queryService.generateVisibilityQuery(query, me);
 		if (me) this.queryService.generateMutedUserQuery(query, me);
 		if (me) this.queryService.generateBlockedUserQuery(query, me);
@@ -322,6 +323,7 @@ export class SearchService {
 		opts: SearchOpts,
 		pagination: SearchPagination,
 	): Promise<MiNote[]> {
+		const meta = await this.metaService.fetch(true);
 		if (!this.meilisearch || !this.meilisearchNoteIndex) {
 			throw new Error('MeiliSearch is not available');
 		}
