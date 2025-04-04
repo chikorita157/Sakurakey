@@ -22,6 +22,12 @@ function toolsMenuItems(): MenuItem[] {
 		to: '/api-console',
 		text: 'API Console',
 		icon: 'ph-terminal-window ph-bold ph-lg-2',
+	},{
+		text: 'Mastodon Frontend',
+		icon: 'ph-newspaper-clipping ph-bold ph-lg',
+		action: () => {
+			window.open('https://mastofe.sakurajima.social/', '_blank');
+		},
 	}, {
 		type: 'link',
 		to: '/clicker',
