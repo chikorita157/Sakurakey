@@ -307,6 +307,10 @@ export class SearchService {
 		this.queryService.generateVisibilityQuery(query, me);
 		if (me) this.queryService.generateMutedUserQuery(query, me);
 		if (me) this.queryService.generateBlockedUserQuery(query, me);
+		if (note.user?.isSilenced && me && followings && note.userId !== me.id && !followings[note.userId]) return false;
+		if (!me && note.user?.isSilenced) return false;
+		if (this.utilityService.isBlockedHost(meta.blockedHosts, note.userHost)) return false;
+		if (this.utilityService.isSilencedHost(meta.silencedHosts, note.userHost)) return false;
 
 		return await query.limit(pagination.limit).getMany();
 	}
