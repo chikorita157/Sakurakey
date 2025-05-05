@@ -100,6 +100,8 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			if (me) this.queryService.generateMutedUserQuery(query, me);
 			if (me) this.queryService.generateBlockedUserQuery(query, me);
 
+			query.andWhere('note.visibility = \'public\'');
+
 			const [
 				followings,
 			] = me ? await Promise.all([
