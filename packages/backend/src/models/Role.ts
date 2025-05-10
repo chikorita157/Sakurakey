@@ -48,6 +48,15 @@ type CondFormulaValueIsRemote = {
 };
 
 /**
+ * User is from a specific instance
+ */
+type CondFormulaValueIsFromInstance = {
+	type: 'isFromInstance';
+	host: string;
+	subdomains: boolean;
+};
+
+/**
  * 既に指定のマニュアルロールにアサインされている場合のみ成立とする
  */
 type CondFormulaValueRoleAssignedTo = {
@@ -160,6 +169,7 @@ export type RoleCondFormulaValue = { id: string } & (
 	CondFormulaValueNot |
 	CondFormulaValueIsLocal |
 	CondFormulaValueIsRemote |
+	CondFormulaValueIsFromInstance |
 	CondFormulaValueIsSuspended |
 	CondFormulaValueIsLocked |
 	CondFormulaValueIsBot |
@@ -247,6 +257,11 @@ export class MiRole {
 		default: false,
 	})
 	public isExplorable: boolean;
+
+	@Column('boolean', {
+		default: false,
+	})
+	public preserveAssignmentOnMoveAccount: boolean;
 
 	@Column('boolean', {
 		default: false,

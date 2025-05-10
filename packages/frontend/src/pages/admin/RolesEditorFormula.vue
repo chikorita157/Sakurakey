@@ -9,6 +9,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 		<MkSelect v-model="type" :class="$style.typeSelect">
 			<option value="isLocal">{{ i18n.ts._role._condition.isLocal }}</option>
 			<option value="isRemote">{{ i18n.ts._role._condition.isRemote }}</option>
+			<option value="isFromInstance">{{ i18n.ts._role._condition.isFromInstance }}</option>
 			<option value="isSuspended">{{ i18n.ts._role._condition.isSuspended }}</option>
 			<option value="isLocked">{{ i18n.ts._role._condition.isLocked }}</option>
 			<option value="isBot">{{ i18n.ts._role._condition.isBot }}</option>
@@ -61,6 +62,14 @@ SPDX-License-Identifier: AGPL-3.0-only
 	<MkSelect v-else-if="type === 'roleAssignedTo'" v-model="v.roleId">
 		<option v-for="role in roles.filter(r => r.target === 'manual')" :key="role.id" :value="role.id">{{ role.name }}</option>
 	</MkSelect>
+
+	<MkInput v-else-if="type === 'isFromInstance'" v-model="v.host" type="text">
+		<template #label>{{ i18n.ts._role._condition.isFromInstanceHost }}</template>
+	</MkInput>
+
+	<MkSwitch v-if="type === 'isFromInstance'" v-model="v.subdomains">
+		<template #label>{{ i18n.ts._role._condition.isFromInstanceSubdomains }}</template>
+	</MkSwitch>
 </div>
 </template>
 
@@ -71,8 +80,9 @@ import MkInput from '@/components/MkInput.vue';
 import MkSelect from '@/components/MkSelect.vue';
 import MkButton from '@/components/MkButton.vue';
 import { i18n } from '@/i18n.js';
-import { deepClone } from '@/scripts/clone.js';
+import { deepClone } from '@/utility/clone.js';
 import { rolesCache } from '@/cache.js';
+import MkSwitch from '@/components/MkSwitch.vue';
 
 const Sortable = defineAsyncComponent(() => import('vuedraggable').then(x => x.default));
 
@@ -102,6 +112,7 @@ watch(v, () => {
 const type = computed({
 	get: () => v.value.type,
 	set: (t) => {
+		// TODO there's a bug here: switching types leaves extra properties in the JSON
 		if (t === 'and') v.value.values = [];
 		if (t === 'or') v.value.values = [];
 		if (t === 'not') v.value.value = { id: uuid(), type: 'isRemote' };
@@ -114,6 +125,10 @@ const type = computed({
 		if (t === 'followingMoreThanOrEq') v.value.value = 10;
 		if (t === 'notesLessThanOrEq') v.value.value = 10;
 		if (t === 'notesMoreThanOrEq') v.value.value = 10;
+		if (t === 'isFromInstance') {
+			v.value.host = '';
+			v.value.subdomains = true;
+		}
 		v.value.type = t;
 	},
 });

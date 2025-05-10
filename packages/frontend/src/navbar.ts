@@ -4,16 +4,16 @@
  */
 
 import { computed, defineAsyncComponent, reactive } from 'vue';
-import { clearCache } from './scripts/clear-cache.js';
+import { ui } from '@@/js/config.js';
+import { clearCache } from './utility/clear-cache.js';
 import { instance } from './instance.js';
-import { $i } from '@/account.js';
+import { $i } from '@/i.js';
 import { miLocalStorage } from '@/local-storage.js';
-import { openInstanceMenu } from '@/ui/_common_/common.js';
-import { lookup } from '@/scripts/lookup.js';
+import { openInstanceMenu, openToolsMenu } from '@/ui/_common_/common.js';
+import { lookup } from '@/utility/lookup.js';
 import * as os from '@/os.js';
 import { i18n } from '@/i18n.js';
-import { ui } from '@@/js/config.js';
-import { unisonReload } from '@/scripts/unison-reload.js';
+import { unisonReload } from '@/utility/unison-reload.js';
 
 export const navbarItemDef = reactive({
 	notifications: {
@@ -125,6 +125,13 @@ export const navbarItemDef = reactive({
 		show: computed(() => $i != null),
 		to: '/my/clips',
 	},
+	chat: {
+		title: i18n.ts.chat,
+		icon: 'ti ti-messages',
+		to: '/chat',
+		show: computed(() => $i != null && $i.policies.chatAvailability !== 'unavailable'),
+		indicated: computed(() => $i != null && $i.hasUnreadChatMessages),
+	},
 	achievements: {
 		title: i18n.ts.achievements,
 		icon: 'ti ti-medal',
@@ -154,13 +161,6 @@ export const navbarItemDef = reactive({
 					miLocalStorage.setItem('ui', 'deck');
 					unisonReload();
 				},
-			}, {
-				text: i18n.ts.classic,
-				active: ui === 'classic',
-				action: () => {
-					miLocalStorage.setItem('ui', 'classic');
-					unisonReload();
-				},
 			}], ev.currentTarget ?? ev.target);
 		},
 	},
@@ -175,7 +175,7 @@ export const navbarItemDef = reactive({
 		title: i18n.ts.reload,
 		icon: 'ti ti-refresh',
 		action: (ev) => {
-			location.reload();
+			window.location.reload();
 		},
 	},
 	profile: {

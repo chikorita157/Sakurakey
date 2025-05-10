@@ -56,10 +56,6 @@ mediaSilencedByBase: "This host's media is silenced implicitly because a base do
 driveSearchbarPlaceholder: "Search drive"
 fileNotSelected: "No file selected"
 background: "Background"
-inputNewDescription: "Enter new alt text"
-describeFile: "Add alt text"
-enterFileDescription: "Enter alt text"
-caption: "Alt text"
 antennaUsersDescription: "List one username per line. Use \"*@instance.com\" to specify all users of an instance"
 aboutMisskey: "About Sharkey"
 expandAllCws: "Show content for all replies"
@@ -246,6 +242,9 @@ _role:
   _condition:
     isLocked: "Private account"
     isExplorable: "Account is discoverable"
+    isFromInstance: "Is from a specific instance"
+    isFromInstanceHost: "Hostname (case-insensitive)"
+    isFromInstanceSubdomains: "Match subdomains"
 _emailUnavailable:
   banned: "This email address is banned"
 _signup:
@@ -531,3 +530,16 @@ _authorizedFetchValueDescription:
   essential: "Allow some limited unsigned requests. Provides a hybrid between \"Never\" and \"Always\" by exposing only the minimum profile metadata that is required for federation with older software."
   staff: "Use the default value of \"{value}\" recommended by the instance staff."
 authorizedFetchLegacyWarning: "The configuration property 'checkActivityPubGetSignature' has been deprecated and replaced with the new Authorized Fetch setting. Please remove it from your configuration file."
+
+_followRequest:
+  recieved: "Received"
+  sent: "Sent"
+
+deleted: "Deleted"
+
+enableProxyAccount: "Enable the proxy account."
+enableProxyAccountDescription: "If disabled, then the proxy account will not be used. User lists will only include notes from local or followed users."
+
+_confirmPollEdit:
+  title: Are you sure you want to edit this poll
+  text: Editing this poll will cause it to lose all previous votes
