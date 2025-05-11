@@ -5,8 +5,8 @@
 
 import { markRaw, ref } from 'vue';
 import * as Misskey from 'misskey-js';
-import lightTheme from '@@/themes/l-light.json5';
-import darkTheme from '@@/themes/d-green-lime.json5';
+import lightTheme from '@@/themes/l-sakurajima-sakura.json5';
+import darkTheme from '@@/themes/d-yozakura.json5';
 import { hemisphere } from '@@/js/intl-const.js';
 import type { DeviceKind } from '@/utility/device-kind.js';
 import type { Plugin } from '@/plugin.js';
@@ -581,8 +581,6 @@ interface Watcher {
 /**
  * 常にメモリにロードしておく必要がないような設定情報を保管するストレージ(非リアクティブ)
  */
-import lightTheme from '@/themes/l-sakurajima-sakura.json5';
-import darkTheme from '@/themes/d-yozakura.json5';
 
 export class ColdDeviceStorage {
 	public static default = {
