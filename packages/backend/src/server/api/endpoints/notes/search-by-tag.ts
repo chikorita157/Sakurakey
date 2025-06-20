@@ -82,26 +82,25 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 
 		private noteEntityService: NoteEntityService,
 		private queryService: QueryService,
-		private cacheService: CacheService,
-		private utilityService: UtilityService,
 	) {
 		super(meta, paramDef, async (ps, me) => {
 			const query = this.queryService.makePaginationQuery(this.notesRepository.createQueryBuilder('note'), ps.sinceId, ps.untilId)
-				.andWhere("note.visibility IN	('public', 'home')") // keep in sync with NoteCreateService call to `hashtagService.updateHashtags()`
+				.andWhere(new Brackets(qb => qb
+					.orWhere('note.visibility = \'public\'')
 				.innerJoinAndSelect('note.user', 'user')
 				.leftJoinAndSelect('note.reply', 'reply')
 				.leftJoinAndSelect('note.renote', 'renote')
 				.leftJoinAndSelect('reply.user', 'replyUser')
-				.leftJoinAndSelect('renote.user', 'renoteUser');
+				.leftJoinAndSelect('renote.user', 'renoteUser')
+				.limit(ps.limit);
 
-			if (!this.serverSettings.enableBotTrending) query.andWhere('user.isBot = FALSE');
-
-			this.queryService.generateVisibilityQuery(query, me);
 			this.queryService.generateBlockedHostQueryForNote(query);
+			this.queryService.generateSilencedUserQueryForNotes(query, me);
 			if (me) this.queryService.generateMutedUserQueryForNotes(query, me);
 			if (me) this.queryService.generateBlockedUserQueryForNotes(query, me);
+			if (me) this.queryService.generateMutedUserRenotesQueryForNotes(query, me);
 
-			const followings = me ? await this.cacheService.userFollowingsCache.fetch(me.id) : {};
+			if (!this.serverSettings.enableBotTrending) query.andWhere('user.isBot = FALSE');
 
 			try {
 				if (ps.tag) {
@@ -134,9 +133,9 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 
 			if (ps.renote != null) {
 				if (ps.renote) {
-					query.andWhere('note.renoteId IS NOT NULL');
+					this.queryService.andIsRenote(query, 'note');
 				} else {
-					query.andWhere('note.renoteId IS NULL');
+					this.queryService.andIsNotRenote(query, 'note');
 				}
 			}
 

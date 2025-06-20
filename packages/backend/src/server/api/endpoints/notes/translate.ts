@@ -10,22 +10,26 @@ import { NoteEntityService } from '@/core/entities/NoteEntityService.js';
 import { HttpRequestService } from '@/core/HttpRequestService.js';
 import { GetterService } from '@/server/api/GetterService.js';
 import { RoleService } from '@/core/RoleService.js';
-import { ApiError } from '../../error.js';
-import { MiMeta } from '@/models/_.js';
+import type { MiMeta, MiNote } from '@/models/_.js';
 import { DI } from '@/di-symbols.js';
+import { CacheService } from '@/core/CacheService.js';
+import { hasText } from '@/models/Note.js';
+import { ApiLoggerService } from '@/server/api/ApiLoggerService.js';
+import { ApiError } from '../../error.js';
 
 export const meta = {
 	tags: ['notes'],
 
-	requireCredential: true,
+	requireCredential: 'optional',
 	kind: 'read:account',
+	requiredRolePolicy: 'canUseTranslator',
 
 	res: {
 		type: 'object',
-		optional: true, nullable: false,
+		optional: false, nullable: false,
 		properties: {
-			sourceLang: { type: 'string' },
-			text: { type: 'string' },
+			sourceLang: { type: 'string', optional: true, nullable: false },
+			text: { type: 'string', optional: true, nullable: false },
 		},
 	},
 
@@ -44,6 +48,11 @@ export const meta = {
 			message: 'Cannot translate invisible note.',
 			code: 'CANNOT_TRANSLATE_INVISIBLE_NOTE',
 			id: 'ea29f2ca-c368-43b3-aaf1-5ac3e74bbe5d',
+		},
+		translationFailed: {
+			message: 'Failed to translate note. Please try again later or contact an administrator for assistance.',
+			code: 'TRANSLATION_FAILED',
+			id: '4e7a1a4f-521c-4ba2-b10a-69e5e2987b2f',
 		},
 	},
 
@@ -73,24 +82,21 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 		private getterService: GetterService,
 		private httpRequestService: HttpRequestService,
 		private roleService: RoleService,
+		private readonly cacheService: CacheService,
+		private readonly loggerService: ApiLoggerService,
 	) {
 		super(meta, paramDef, async (ps, me) => {
-			const policies = await this.roleService.getUserPolicies(me.id);
-			if (!policies.canUseTranslator) {
-				throw new ApiError(meta.errors.unavailable);
-			}
-
 			const note = await this.getterService.getNote(ps.noteId).catch(err => {
 				if (err.id === '9725d0ce-ba28-4dde-95a7-2cbb2c15de24') throw new ApiError(meta.errors.noSuchNote);
 				throw err;
 			});
 
-			if (!(await this.noteEntityService.isVisibleForMe(note, me.id))) {
+			if (!(await this.noteEntityService.isVisibleForMe(note, me?.id ?? null, { me }))) {
 				throw new ApiError(meta.errors.cannotTranslateInvisibleNote);
 			}
 
-			if (note.text == null) {
-				return;
+			if (!hasText(note)) {
+				return {};
 			}
 
 			const canDeeplFree = this.serverSettings.deeplFreeMode && !!this.serverSettings.deeplFreeInstance;
@@ -101,13 +107,33 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			let targetLang = ps.targetLang;
 			if (targetLang.includes('-')) targetLang = targetLang.split('-')[0];
 
+			let response = await this.cacheService.getCachedTranslation(note, targetLang);
+			if (!response) {
+				this.loggerService.logger.debug(`Fetching new translation for note=${note.id} lang=${targetLang}`);
+				response = await this.fetchTranslation(note, targetLang);
+				if (!response) {
+					throw new ApiError(meta.errors.translationFailed);
+				}
+
+				await this.cacheService.setCachedTranslation(note, targetLang, response);
+			}
+			return response;
+		});
+	}
+
+	private async fetchTranslation(note: MiNote & { text: string }, targetLang: string) {
+		// Load-bearing try/catch - removing this will shift indentation and cause ~80 lines of upstream merge conflicts
+		try {
+			// Ignore deeplFreeInstance unless deeplFreeMode is set
+			const deeplFreeInstance = this.serverSettings.deeplFreeMode ? this.serverSettings.deeplFreeInstance : null;
+
 			// DeepL/DeepLX handling
-			if (canDeepl) {
+			if (this.serverSettings.deeplAuthKey || deeplFreeInstance) {
 				const params = new URLSearchParams();
 				if (this.serverSettings.deeplAuthKey) params.append('auth_key', this.serverSettings.deeplAuthKey);
 				params.append('text', note.text);
 				params.append('target_lang', targetLang);
-				const endpoint = canDeeplFree ? this.serverSettings.deeplFreeInstance as string : this.serverSettings.deeplIsPro ? 'https://api.deepl.com/v2/translate' : 'https://api-free.deepl.com/v2/translate';
+				const endpoint = deeplFreeInstance ?? ( this.serverSettings.deeplIsPro ? 'https://api.deepl.com/v2/translate' : 'https://api-free.deepl.com/v2/translate' );
 
 				const res = await this.httpRequestService.send(endpoint, {
 					method: 'POST',
@@ -116,6 +142,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 						Accept: 'application/json, */*',
 					},
 					body: params.toString(),
+					timeout: this.serverSettings.translationTimeout,
 				});
 				if (this.serverSettings.deeplAuthKey) {
 					const json = (await res.json()) as {
@@ -151,8 +178,8 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			}
 
 			// LibreTranslate handling
-			if (canLibre) {
-				const res = await this.httpRequestService.send(this.serverSettings.libreTranslateURL as string, {
+			if (this.serverSettings.libreTranslateURL) {
+				const res = await this.httpRequestService.send(this.serverSettings.libreTranslateURL, {
 					method: 'POST',
 					headers: {
 						'Content-Type': 'application/json',
@@ -165,6 +192,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 						format: 'text',
 						api_key: this.serverSettings.libreTranslateKey ?? '',
 					}),
+					timeout: this.serverSettings.translationTimeout,
 				});
 
 				const json = (await res.json()) as {
@@ -182,8 +210,10 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 					text: json.translatedText,
 				};
 			}
+		} catch (e) {
+			this.loggerService.logger.error('Unhandled error from translation API: ', { e });
+		}
 
-			return;
-		});
+		return null;
 	}
 }

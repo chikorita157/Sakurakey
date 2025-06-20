@@ -711,6 +711,15 @@ export type paths = {
      */
     post: operations['admin___roles___assign'];
   };
+  '/admin/roles/clone': {
+    /**
+     * admin/roles/clone
+     * @description No description provided.
+     *
+     * **Credential required**: *Yes* / **Permission**: *write:admin:roles*
+     */
+    post: operations['admin___roles___clone'];
+  };
   '/admin/roles/create': {
     /**
      * admin/roles/create
@@ -3317,7 +3326,7 @@ export type paths = {
      * notes/polls/recommendation
      * @description No description provided.
      *
-     * **Credential required**: *Yes* / **Permission**: *read:account*
+     * **Credential required**: *No*
      */
     post: operations['notes___polls___recommendation'];
   };
@@ -4246,6 +4255,10 @@ export type components = {
       /** Format: url */
       avatarUrl: string | null;
       avatarBlurhash: string | null;
+      /** @example Hi masters, I am Ai! */
+      description: string | null;
+      /** Format: date-time */
+      createdAt: string;
       avatarDecorations: {
           /** Format: id */
           id: string;
@@ -4281,6 +4294,7 @@ export type components = {
         iconUrl: string | null;
         faviconUrl: string | null;
         themeColor: string | null;
+        isSilenced: boolean;
       };
       emojis: {
         [key: string]: string;
@@ -4292,6 +4306,7 @@ export type components = {
           iconUrl: string | null;
           displayOrder: number;
         })[];
+      attributionDomains: string[];
     };
     UserDetailedNotMeOnly: {
       /** Format: url */
@@ -4301,8 +4316,6 @@ export type components = {
       /** Format: uri */
       movedTo: string | null;
       alsoKnownAs: string[] | null;
-      /** Format: date-time */
-      createdAt: string;
       /** Format: date-time */
       updatedAt: string | null;
       /** Format: date-time */
@@ -4317,8 +4330,6 @@ export type components = {
       isSilenced: boolean;
       /** @example false */
       isSuspended: boolean;
-      /** @example Hi masters, I am Ai! */
-      description: string | null;
       location: string | null;
       /** @example 2018-03-12 */
       birthday: string | null;
@@ -5294,6 +5305,7 @@ export type components = {
       rejectReports: boolean;
       rejectQuotes: boolean;
       moderationNote?: string | null;
+      isBubbled: boolean;
     };
     GalleryPost: {
       /**
@@ -5520,6 +5532,7 @@ export type components = {
       scheduleNoteMax: number;
       /** @enum {string} */
       chatAvailability: 'available' | 'readonly' | 'unavailable';
+      canTrend: boolean;
     };
     ReversiGameLite: {
       /** Format: id */
@@ -6194,6 +6207,7 @@ export type operations = {
               assigneeId: string | null;
               reporter: components['schemas']['UserDetailedNotMe'];
               targetUser: components['schemas']['UserDetailedNotMe'];
+              targetInstance: components['schemas']['FederationInstance'] | null;
               assignee: components['schemas']['UserDetailedNotMe'] | null;
               forwarded: boolean;
               /** @enum {string|null} */
@@ -9249,6 +9263,7 @@ export type operations = {
             enableReactionsBuffering: boolean;
             notesPerOneAd: number;
             backgroundImageUrl: string | null;
+            translationTimeout: number;
             deeplAuthKey: string | null;
             deeplIsPro: boolean;
             deeplFreeMode: boolean;
@@ -9257,6 +9272,7 @@ export type operations = {
             libreTranslateKey: string | null;
             defaultDarkTheme: string | null;
             defaultLightTheme: string | null;
+            defaultLike: string;
             description: string | null;
             disableRegistration: boolean;
             impressumUrl: string | null;
@@ -10379,6 +10395,60 @@ export type operations = {
     };
   };
   /**
+   * admin/roles/clone
+   * @description No description provided.
+   *
+   * **Credential required**: *Yes* / **Permission**: *write:admin:roles*
+   */
+  admin___roles___clone: {
+    requestBody: {
+      content: {
+        'application/json': {
+          /** Format: misskey:id */
+          roleId: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK (with results) */
+      200: {
+        content: {
+          'application/json': components['schemas']['Role'];
+        };
+      };
+      /** @description Client error */
+      400: {
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Authentication error */
+      401: {
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Forbidden error */
+      403: {
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description I'm Ai */
+      418: {
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        content: {
+          'application/json': components['schemas']['Error'];
+        };
+      };
+    };
+  };
+  /**
    * admin/roles/create
    * @description No description provided.
    *
@@ -11206,6 +11276,7 @@ export type operations = {
               }]>;
             };
             isModerator: boolean;
+            isAdministrator: boolean;
             isSystem: boolean;
             isSilenced: boolean;
             isSuspended: boolean;
@@ -11220,6 +11291,15 @@ export type operations = {
                 expiresAt: string | null;
                 roleId: string;
               })[];
+            followStats: {
+              totalFollowing: number;
+              totalFollowers: number;
+              localFollowing: number;
+              localFollowers: number;
+              remoteFollowing: number;
+              remoteFollowers: number;
+            };
+            signupReason: string | null;
           };
         };
       };
@@ -12127,7 +12207,7 @@ export type operations = {
           description?: string | null;
           defaultLightTheme?: string | null;
           defaultDarkTheme?: string | null;
-          defaultLike?: string | null;
+          defaultLike?: string;
           cacheRemoteFiles?: boolean;
           cacheRemoteSensitiveFiles?: boolean;
           emailRequiredForSignup?: boolean;
@@ -12159,6 +12239,7 @@ export type operations = {
           maintainerName?: string | null;
           maintainerEmail?: string | null;
           langs?: string[];
+          translationTimeout?: number;
           deeplAuthKey?: string | null;
           deeplIsPro?: boolean;
           deeplFreeMode?: boolean;
@@ -12905,7 +12986,14 @@ export type operations = {
     requestBody: {
       content: {
         'application/json': {
-          uri: string;
+          uri?: string | null;
+          /** Format: misskey:id */
+          userId?: string | null;
+          /** Format: misskey:id */
+          noteId?: string | null;
+          expandCollectionItems?: boolean;
+          expandCollectionLimit?: number | null;
+          allowAnonymous?: boolean;
         };
       };
     };
@@ -19557,18 +19645,10 @@ export type operations = {
       200: {
         content: {
           'application/json': {
-            image?: {
-              link?: string;
-              url: string;
-              title?: string;
-            };
-            paginationLinks?: {
-              self?: string;
-              first?: string;
-              next?: string;
-              last?: string;
-              prev?: string;
-            };
+            type: string;
+            id?: string;
+            updated?: string;
+            author?: string;
             link?: string;
             title?: string;
             items: {
@@ -19576,33 +19656,15 @@ export type operations = {
                 guid?: string;
                 title?: string;
                 pubDate?: string;
-                creator?: string;
-                summary?: string;
-                content?: string;
-                isoDate?: string;
-                categories?: string[];
-                contentSnippet?: string;
-                enclosure?: {
-                  url: string;
-                  length?: number;
-                  type?: string;
-                };
+                description?: string;
+                media: {
+                    medium?: string;
+                    url?: string;
+                    type?: string;
+                    lang?: string;
+                  }[];
               }[];
-            feedUrl?: string;
             description?: string;
-            itunes?: {
-              image?: string;
-              owner?: {
-                name?: string;
-                email?: string;
-              };
-              author?: string;
-              summary?: string;
-              explicit?: string;
-              categories?: string[];
-              keywords?: string[];
-              [key: string]: unknown;
-            };
           };
         };
       };
@@ -21747,6 +21809,8 @@ export type operations = {
            * @enum {string}
            */
           origin?: 'combined' | 'local' | 'remote';
+          /** @default false */
+          trending?: boolean;
         };
       };
     };
@@ -24241,7 +24305,7 @@ export type operations = {
       /** @description OK (with results) */
       200: {
         content: {
-          'application/json': Record<string, never>;
+          'application/json': unknown;
         };
       };
       /** @description Client error */
@@ -25166,6 +25230,7 @@ export type operations = {
           defaultCWPriority?: 'default' | 'parent' | 'defaultParent' | 'parentDefault';
           /** @enum {string} */
           allowUnsignedFetch?: 'never' | 'always' | 'essential' | 'staff';
+          attributionDomains?: string[];
         };
       };
     };
@@ -27211,12 +27276,6 @@ export type operations = {
           untilDate?: number;
           /** @default false */
           allowPartial?: boolean;
-          /** @default true */
-          includeMyRenotes?: boolean;
-          /** @default true */
-          includeRenotedMyNotes?: boolean;
-          /** @default true */
-          includeLocalRenotes?: boolean;
           /** @default false */
           withFiles?: boolean;
           /** @default true */
@@ -27479,7 +27538,7 @@ export type operations = {
    * notes/polls/recommendation
    * @description No description provided.
    *
-   * **Credential required**: *Yes* / **Permission**: *read:account*
+   * **Credential required**: *No*
    */
   notes___polls___recommendation: {
     requestBody: {
@@ -27491,6 +27550,10 @@ export type operations = {
           offset?: number;
           /** @default false */
           excludeChannels?: boolean;
+          /** @default null */
+          local?: boolean | null;
+          /** @default false */
+          expired?: boolean;
         };
       };
     };
@@ -28628,12 +28691,6 @@ export type operations = {
           untilDate?: number;
           /** @default false */
           allowPartial?: boolean;
-          /** @default true */
-          includeMyRenotes?: boolean;
-          /** @default true */
-          includeRenotedMyNotes?: boolean;
-          /** @default true */
-          includeLocalRenotes?: boolean;
           /** @default false */
           withFiles?: boolean;
           /** @default true */
@@ -28709,14 +28766,10 @@ export type operations = {
       200: {
         content: {
           'application/json': {
-            sourceLang: string;
-            text: string;
+            sourceLang?: string;
+            text?: string;
           };
         };
-      };
-      /** @description OK (without any results) */
-      204: {
-        content: never;
       };
       /** @description Client error */
       400: {
@@ -28838,12 +28891,6 @@ export type operations = {
           untilDate?: number;
           /** @default false */
           allowPartial?: boolean;
-          /** @default true */
-          includeMyRenotes?: boolean;
-          /** @default true */
-          includeRenotedMyNotes?: boolean;
-          /** @default true */
-          includeLocalRenotes?: boolean;
           /** @default true */
           withRenotes?: boolean;
           /**
@@ -31524,7 +31571,7 @@ export type operations = {
           /** @default 0 */
           offset?: number;
           /** @enum {string} */
-          sort?: '+follower' | '-follower' | '+createdAt' | '-createdAt' | '+updatedAt' | '-updatedAt';
+          sort?: '+follower' | '-follower' | '+localFollower' | '-localFollower' | '+createdAt' | '-createdAt' | '+updatedAt' | '-updatedAt';
           /**
            * @default all
            * @enum {string}

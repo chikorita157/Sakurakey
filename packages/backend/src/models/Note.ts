@@ -5,12 +5,15 @@
 
 import { Entity, Index, JoinColumn, Column, PrimaryColumn, ManyToOne } from 'typeorm';
 import { noteVisibilities } from '@/types.js';
+import { MiInstance } from '@/models/Instance.js';
 import { id } from './util/id.js';
 import { MiUser } from './User.js';
 import { MiChannel } from './Channel.js';
 import type { MiDriveFile } from './DriveFile.js';
 
-@Index(['userId', 'id'])
+@Index('IDX_724b311e6f883751f261ebe378', ['userId', 'id'])
+@Index('IDX_note_userHost_id', { synchronize: false }) // (userHost, id desc)
+@Index('IDX_note_for_timelines', { synchronize: false }) // (id desc, channelId, visibility, userHost)
 @Entity('note')
 export class MiNote {
 	@PrimaryColumn(id())
@@ -130,6 +133,7 @@ export class MiNote {
 	})
 	public uri: string | null;
 
+	@Index('IDX_note_url')
 	@Column('varchar', {
 		length: 512, nullable: true,
 		comment: 'The human readable url of a note. it will be null when the note is local.',
@@ -215,12 +219,21 @@ export class MiNote {
 	public processErrors: string[] | null;
 
 	//#region Denormalized fields
-	@Index()
 	@Column('varchar', {
 		length: 128, nullable: true,
 		comment: '[Denormalized]',
 	})
 	public userHost: string | null;
+
+	@ManyToOne(() => MiInstance, {
+		onDelete: 'CASCADE',
+	})
+	@JoinColumn({
+		name: 'userHost',
+		foreignKeyConstraintName: 'FK_note_userHost',
+		referencedColumnName: 'host',
+	})
+	public userInstance: MiInstance | null;
 
 	@Column({
 		...id(),
@@ -235,6 +248,16 @@ export class MiNote {
 	})
 	public replyUserHost: string | null;
 
+	@ManyToOne(() => MiInstance, {
+		onDelete: 'CASCADE',
+	})
+	@JoinColumn({
+		name: 'replyUserHost',
+		foreignKeyConstraintName: 'FK_note_replyUserHost',
+		referencedColumnName: 'host',
+	})
+	public replyUserInstance: MiInstance | null;
+
 	@Column({
 		...id(),
 		nullable: true,
@@ -247,6 +270,16 @@ export class MiNote {
 		comment: '[Denormalized]',
 	})
 	public renoteUserHost: string | null;
+
+	@ManyToOne(() => MiInstance, {
+		onDelete: 'CASCADE',
+	})
+	@JoinColumn({
+		name: 'renoteUserHost',
+		foreignKeyConstraintName: 'FK_note_renoteUserHost',
+		referencedColumnName: 'host',
+	})
+	public renoteUserInstance: MiInstance | null;
 	//#endregion
 
 	constructor(data: Partial<MiNote>) {
@@ -264,3 +297,7 @@ export type IMentionedRemoteUsers = {
 	username: string;
 	host: string;
 }[];
+
+export function hasText(note: MiNote): note is MiNote & { text: string } {
+	return note.text != null;
+}

@@ -49,6 +49,7 @@ import { i18n } from '@/i18n.js';
 import * as os from '@/os.js';
 import { miLocalStorage } from '@/local-storage.js';
 import { instance } from '@/instance.js';
+import { prefer } from '@/preferences.js';
 
 const emit = defineEmits<{
 	(ev: 'closed'): void;
@@ -62,6 +63,7 @@ function close() {
 }
 
 function neverShow() {
+	prefer.commit('neverShowDonationInfo', 'true');
 	miLocalStorage.setItem('neverShowDonationInfo', 'true');
 	close();
 }

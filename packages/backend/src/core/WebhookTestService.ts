@@ -13,6 +13,7 @@ import { type WebhookEventTypes } from '@/models/Webhook.js';
 import { CustomEmojiService } from '@/core/CustomEmojiService.js';
 import { type UserWebhookPayload, UserWebhookService } from '@/core/UserWebhookService.js';
 import { QueueService } from '@/core/QueueService.js';
+import { IdService } from '@/core/IdService.js';
 import { ModeratorInactivityRemainingTime } from '@/queue/processors/CheckModeratorsActivityProcessorService.js';
 
 const oneDayMillis = 24 * 60 * 60 * 1000;
@@ -63,6 +64,7 @@ function generateDummyUser(override?: Partial<MiUser>): MiUser {
 		emojis: [],
 		score: 0,
 		host: null,
+		instance: null,
 		inbox: null,
 		sharedInbox: null,
 		featured: null,
@@ -76,6 +78,8 @@ function generateDummyUser(override?: Partial<MiUser>): MiUser {
 		mandatoryCW: null,
 		rejectQuotes: false,
 		allowUnsignedFetch: 'staff',
+		userProfile: null,
+		attributionDomains: [],
 		...override,
 	};
 }
@@ -114,10 +118,13 @@ function generateDummyNote(override?: Partial<MiNote>): MiNote {
 		channelId: null,
 		channel: null,
 		userHost: null,
+		userInstance: null,
 		replyUserId: null,
 		replyUserHost: null,
+		replyUserInstance: null,
 		renoteUserId: null,
 		renoteUserHost: null,
+		renoteUserInstance: null,
 		updatedAt: null,
 		processErrors: [],
 		...override,
@@ -160,6 +167,7 @@ export class WebhookTestService {
 		private userWebhookService: UserWebhookService,
 		private systemWebhookService: SystemWebhookService,
 		private queueService: QueueService,
+		private readonly idService: IdService,
 	) {
 	}
 
@@ -358,8 +366,10 @@ export class WebhookTestService {
 			id: 'dummy-abuse-report1',
 			targetUserId: 'dummy-target-user',
 			targetUser: null,
+			targetUserInstance: null,
 			reporterId: 'dummy-reporter-user',
 			reporter: null,
+			reporterInstance: null,
 			assigneeId: null,
 			assignee: null,
 			resolved: false,
@@ -441,6 +451,8 @@ export class WebhookTestService {
 				offsetX: it.offsetX,
 				offsetY: it.offsetY,
 			})),
+			createdAt: this.idService.parse(user.id).date.toISOString(),
+			description: '',
 			isBot: user.isBot,
 			isCat: user.isCat,
 			emojis: await this.customEmojiService.populateEmojis(user.emojis, user.host),
@@ -449,6 +461,7 @@ export class WebhookTestService {
 			isAdmin: false,
 			isModerator: false,
 			isSystem: false,
+			instance: undefined,
 			...override,
 		};
 	}

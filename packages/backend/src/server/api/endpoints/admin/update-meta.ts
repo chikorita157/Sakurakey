@@ -69,7 +69,7 @@ export const paramDef = {
 		description: { type: 'string', nullable: true },
 		defaultLightTheme: { type: 'string', nullable: true },
 		defaultDarkTheme: { type: 'string', nullable: true },
-		defaultLike: { type: 'string', nullable: true },
+		defaultLike: { type: 'string' },
 		cacheRemoteFiles: { type: 'boolean' },
 		cacheRemoteSensitiveFiles: { type: 'boolean' },
 		emailRequiredForSignup: { type: 'boolean' },
@@ -103,6 +103,7 @@ export const paramDef = {
 				type: 'string',
 			},
 		},
+		translationTimeout: { type: 'number' },
 		deeplAuthKey: { type: 'string', nullable: true },
 		deeplIsPro: { type: 'boolean' },
 		deeplFreeMode: { type: 'boolean' },
@@ -560,6 +561,10 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 				set.objectStorageS3ForcePathStyle = ps.objectStorageS3ForcePathStyle;
 			}
 
+			if (ps.translationTimeout !== undefined) {
+				set.translationTimeout = ps.translationTimeout;
+			}
+
 			if (ps.deeplAuthKey !== undefined) {
 				if (ps.deeplAuthKey === '') {
 					set.deeplAuthKey = null;
@@ -773,9 +778,29 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			const after = await this.metaService.fetch(true);
 
 			this.moderationLogService.log(me, 'updateServerSettings', {
-				before,
-				after,
+				before: sanitize(before),
+				after: sanitize(after),
 			});
 		});
 	}
 }
+
+function sanitize(meta: Partial<MiMeta>): Partial<MiMeta> {
+	return {
+		...meta,
+		hcaptchaSecretKey: '<redacted>',
+		mcaptchaSecretKey: '<redacted>',
+		recaptchaSecretKey: '<redacted>',
+		turnstileSecretKey: '<redacted>',
+		fcSecretKey: '<redacted>',
+		smtpPass: '<redacted>',
+		swPrivateKey: '<redacted>',
+		objectStorageAccessKey: '<redacted>',
+		objectStorageSecretKey: '<redacted>',
+		deeplAuthKey: '<redacted>',
+		libreTranslateKey: '<redacted>',
+		verifymailAuthKey: '<redacted>',
+		truemailAuthKey: '<redacted>',
+	};
+}
+

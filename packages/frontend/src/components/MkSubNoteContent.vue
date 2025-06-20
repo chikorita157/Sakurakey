@@ -8,17 +8,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 	<div :class="{ [$style.clickToOpen]: prefer.s.clickToOpen }" @click.stop="prefer.s.clickToOpen ? noteclick(note.id) : undefined">
 		<span v-if="note.isHidden" style="opacity: 0.5">({{ i18n.ts.private }})</span>
 		<span v-if="note.deletedAt" style="opacity: 0.5">({{ i18n.ts.deletedNote }})</span>
-		<MkA v-if="note.replyId" :class="$style.reply" :to="`/notes/${note.replyId}`" @click.stop><i class="ph-arrow-bend-left-up ph-bold ph-lg"></i></MkA>
-		<Mfm v-if="note.text" :text="note.text" :isBlock="true" :author="note.user" :nyaize="'respect'" :isAnim="allowAnim" :emojiUrls="note.emojis"/>
+		<div>
+			<MkA v-if="note.replyId" :class="$style.reply" :to="`/notes/${note.replyId}`" @click.stop><i class="ph-arrow-bend-left-up ph-bold ph-lg"></i></MkA>
+			<Mfm v-if="note.text" :text="note.text" :author="note.user" :nyaize="'respect'" :isAnim="allowAnim" :emojiUrls="note.emojis"/>
+		</div>
 		<MkButton v-if="!allowAnim && animated && !hideFiles" :class="$style.playMFMButton" :small="true" @click="animatedMFM()" @click.stop><i class="ph-play ph-bold ph-lg "></i> {{ i18n.ts._animatedMFM.play }}</MkButton>
 		<MkButton v-else-if="!prefer.s.animatedMfm && allowAnim && animated && !hideFiles" :class="$style.playMFMButton" :small="true" @click="animatedMFM()" @click.stop><i class="ph-stop ph-bold ph-lg "></i> {{ i18n.ts._animatedMFM.stop }}</MkButton>
-		<div v-if="note.text && translating || note.text && translation" :class="$style.translation">
-			<MkLoading v-if="translating" mini/>
-			<div v-else>
-				<b>{{ i18n.tsx.translatedFrom({ x: translation.sourceLang }) }}: </b>
-				<Mfm :text="translation.text" :isBlock="true" :author="note.user" :nyaize="'respect'" :emojiUrls="note.emojis"/>
-			</div>
-		</div>
+		<SkNoteTranslation :note="note" :translation="translation" :translating="translating"></SkNoteTranslation>
 		<MkA v-if="note.renoteId" :class="$style.rp" :to="`/notes/${note.renoteId}`" @click.stop>RN: ...</MkA>
 	</div>
 	<details v-if="note.files && note.files.length > 0" :open="!prefer.s.collapseFiles && !hideFiles">
@@ -41,7 +37,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 <script lang="ts" setup>
 import { ref, computed, watch } from 'vue';
 import * as Misskey from 'misskey-js';
-import * as mfm from '@transfem-org/sfm-js';
+import * as mfm from 'mfm-js';
 import { shouldCollapsed } from '@@/js/collapsed.js';
 import MkMediaList from '@/components/MkMediaList.vue';
 import MkPoll from '@/components/MkPoll.vue';
@@ -51,14 +47,20 @@ import * as os from '@/os.js';
 import { checkAnimationFromMfm } from '@/utility/check-animated-mfm.js';
 import { useRouter } from '@/router';
 import { prefer } from '@/preferences.js';
+import SkNoteTranslation from '@/components/SkNoteTranslation.vue';
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
 	note: Misskey.entities.Note;
 	translating?: boolean;
-	translation?: any;
+	translation?: Misskey.entities.NotesTranslateResponse | false | null;
 	hideFiles?: boolean;
 	expandAllCws?: boolean;
-}>();
+}>(), {
+	translating: false,
+	translation: null,
+	hideFiles: false,
+	expandAllCws: false,
+});
 
 const router = useRouter();
 
@@ -138,13 +140,6 @@ watch(() => props.expandAllCws, (expandAllCws) => {
 	margin-left: 4px;
 	font-style: oblique;
 	color: var(--MI_THEME-renote);
-}
-
-.translation {
-	border: solid 0.5px var(--MI_THEME-divider);
-	border-radius: var(--MI-radius);
-	padding: 12px;
-	margin-top: 8px;
 }
 
 .showLess {

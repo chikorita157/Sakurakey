@@ -2447,7 +2447,7 @@ export interface Locale extends ILocale {
      */
     "disablePagesScript": string;
     /**
-     * リモートユーザー情報の更新
+     * Refresh remote data
      */
     "updateRemoteUser": string;
     /**
@@ -7599,6 +7599,10 @@ export interface Locale extends ILocale {
              * Maximum number of scheduled notes
              */
             "scheduleNoteMax": string;
+            /**
+             * Can appear in trending notes / users
+             */
+            "canTrend": string;
         };
         "_condition": {
             /**
@@ -7689,7 +7693,47 @@ export interface Locale extends ILocale {
              * Match subdomains
              */
             "isFromInstanceSubdomains": string;
+            /**
+             * User is from a bubble instance
+             */
+            "fromBubbleInstance": string;
+            /**
+             * Has X or fewer local followers
+             */
+            "localFollowersLessThanOrEq": string;
+            /**
+             * Has X or more local followers
+             */
+            "localFollowersMoreThanOrEq": string;
+            /**
+             * Follows X or fewer local accounts
+             */
+            "localFollowingLessThanOrEq": string;
+            /**
+             * Follows X or more local accounts
+             */
+            "localFollowingMoreThanOrEq": string;
+            /**
+             * Has X or fewer remote followers
+             */
+            "remoteFollowersLessThanOrEq": string;
+            /**
+             * Has X or more remote followers
+             */
+            "remoteFollowersMoreThanOrEq": string;
+            /**
+             * Follows X or fewer remote accounts
+             */
+            "remoteFollowingLessThanOrEq": string;
+            /**
+             * Follows X or more remote accounts
+             */
+            "remoteFollowingMoreThanOrEq": string;
         };
+        /**
+         * This condition may be incorrect for remote users.
+         */
+        "remoteDataWarning": string;
     };
     "_sensitiveMediaDetection": {
         /**
@@ -12449,6 +12493,14 @@ export interface Locale extends ILocale {
          */
         "centerDescription": string;
         /**
+         * Unix Time
+         */
+        "unixtime": string;
+        /**
+         * Displays a timestamp in the viewer's current timezone.
+         */
+        "unixtimeDescription": string;
+        /**
          * Code (Inline)
          */
         "inlineCode": string;
@@ -12889,11 +12941,23 @@ export interface Locale extends ILocale {
      * Fetch linked note
      */
     "fetchLinkedNote": string;
+    /**
+     * Add "Translate" to note action menu
+     */
+    "showTranslationButtonInNoteFooter": string;
+    /**
+     * Failed to translate note. Please try again later or contact an administrator for assistance.
+     */
+    "translationFailed": string;
     "_processErrors": {
         /**
          * Unable to process quote. This post may be missing context.
          */
         "quoteUnavailable": string;
+        /**
+         * One or more media attachments are unavailable and cannot be shown.
+         */
+        "attachmentFailed": string;
     };
     /**
      * Authorized Fetch
@@ -12969,6 +13033,238 @@ export interface Locale extends ILocale {
          */
         "text": string;
     };
+    /**
+     * Test patterns
+     */
+    "wordMuteTestLabel": string;
+    /**
+     * Enter some text here to test your word patterns. The matched words, if any, will be displayed below.
+     */
+    "wordMuteTestDescription": string;
+    /**
+     * Test
+     */
+    "wordMuteTestTest": string;
+    /**
+     * Matched words: {words}
+     */
+    "wordMuteTestMatch": ParameterizedString<"words">;
+    /**
+     * No results yet, enter some text and click "Test" to check it.
+     */
+    "wordMuteTestNoResults": string;
+    /**
+     * Text does not match any patterns.
+     */
+    "wordMuteTestNoMatch": string;
+    /**
+     * All word mutes are *case-sensitive* and match on any substring, including part of a longer word or name. You can use regular expressions for more precise control.
+     */
+    "wordMuteWarning": string;
+    /**
+     * Bubble timeline
+     */
+    "bubbleTimeline": string;
+    /**
+     * Choose which instances should be displayed in the bubble.
+     */
+    "bubbleTimelineDescription": string;
+    /**
+     * Note: the bubble timeline is hidden by default, and must be enabled via roles.
+     */
+    "bubbleTimelineMustBeEnabled": string;
+    /**
+     * Users popular on the global network
+     */
+    "popularUsersGlobal": string;
+    /**
+     * Users popular on {name}
+     */
+    "popularUsersLocal": ParameterizedString<"name">;
+    /**
+     * Polls trending on {name}
+     */
+    "pollsOnLocal": ParameterizedString<"name">;
+    /**
+     * Polls trending on the global network
+     */
+    "pollsOnRemote": string;
+    /**
+     * Polls that have ended recently
+     */
+    "pollsExpired": string;
+    /**
+     * Trending polls are disabled on this instance.
+     */
+    "trendingPollsDisabled": string;
+    /**
+     * Please log in to view trending polls.
+     */
+    "trendingPollsDisabledLogIn": string;
+    /**
+     * Silenced
+     */
+    "silenced": string;
+    /**
+     * Total followers
+     */
+    "totalFollowers": string;
+    /**
+     * Total following
+     */
+    "totalFollowing": string;
+    /**
+     * Local followers
+     */
+    "localFollowers": string;
+    /**
+     * Local following
+     */
+    "localFollowing": string;
+    /**
+     * Remote followers
+     */
+    "remoteFollowers": string;
+    /**
+     * Remote following
+     */
+    "remoteFollowing": string;
+    /**
+     * Activity Pub
+     */
+    "activityPub": string;
+    /**
+     * IP
+     */
+    "ip": string;
+    /**
+     * The date is when IP address was first used.
+     */
+    "ipTip": string;
+    /**
+     * Period
+     */
+    "rolePeriod": string;
+    /**
+     * Assigned
+     */
+    "roleAssigned": string;
+    /**
+     * automatic
+     */
+    "roleAutomatic": string;
+    /**
+     * Translation timeout
+     */
+    "translationTimeoutLabel": string;
+    /**
+     * Timeout in milliseconds for translation API requests.
+     */
+    "translationTimeoutCaption": string;
+    /**
+     * Staff notes
+     */
+    "staffNotes": string;
+    /**
+     * Icon of {name}
+     */
+    "instanceIconAlt": ParameterizedString<"name">;
+    /**
+     * Attribution Domains
+     */
+    "attributionDomains": string;
+    /**
+     * A list of domains whose content can be attributed to you on link previews, separated by new-line. Any subdomain will also be valid. The following needs to be on the webpage:
+     */
+    "attributionDomainsDescription": string;
+    /**
+     * Written by {user}
+     */
+    "writtenBy": ParameterizedString<"user">;
+    /**
+     * Following (Pub)
+     */
+    "followingPub": string;
+    /**
+     * Followers (Sub)
+     */
+    "followersSub": string;
+    /**
+     * Well-known resources
+     */
+    "wellKnownResources": string;
+    /**
+     * Last posted: {at}
+     */
+    "lastPosted": ParameterizedString<"at">;
+    /**
+     * NSFW
+     */
+    "nsfw": string;
+    /**
+     * Raw
+     */
+    "raw": string;
+    /**
+     * CW
+     */
+    "cw": string;
+    /**
+     * Media Silenced
+     */
+    "mediaSilenced": string;
+    /**
+     * Bubble
+     */
+    "bubble": string;
+    /**
+     * Verified
+     */
+    "verified": string;
+    /**
+     * Not Verified
+     */
+    "notVerified": string;
+    /**
+     * Hibernated
+     */
+    "hibernated": string;
+    /**
+     * When replying to a post with a Content Warning, automatically use the same CW for the reply.
+     */
+    "keepCwDescription": string;
+    /**
+     * Disabled (do not copy CWs)
+     */
+    "keepCwDisabled": string;
+    /**
+     * Enabled (copy CWs verbatim)
+     */
+    "keepCwEnabled": string;
+    /**
+     * Enabled (copy CW and prepend "RE:")
+     */
+    "keepCwPrependRe": string;
+    /**
+     * Note controls
+     */
+    "noteFooterLabel": string;
+    /**
+     * Packed user data in its raw form. Most of these fields are public and visible to all users.
+     */
+    "rawUserDescription": string;
+    /**
+     * Extended user data in its raw form. These fields are private and can only be accessed by moderators.
+     */
+    "rawInfoDescription": string;
+    /**
+     * ActivityPub user data in its raw form. These fields are public and accessible to other instances.
+     */
+    "rawApDescription": string;
+    /**
+     * Signup Reason
+     */
+    "signupReason": string;
 }
 declare const locales: {
     [lang: string]: Locale;

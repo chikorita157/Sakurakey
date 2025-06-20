@@ -17,7 +17,7 @@ export class MiUserProfile {
 	@PrimaryColumn(id())
 	public userId: MiUser['id'];
 
-	@OneToOne(type => MiUser, {
+	@OneToOne(() => MiUser, user => user.userProfile, {
 		onDelete: 'CASCADE',
 	})
 	@JoinColumn()
@@ -110,12 +110,14 @@ export class MiUserProfile {
 
 	@Column('enum', {
 		enum: followingVisibilities,
+		enumName: 'user_profile_followingVisibility_enum',
 		default: 'public',
 	})
 	public followingVisibility: typeof followingVisibilities[number];
 
 	@Column('enum', {
 		enum: followersVisibilities,
+		enumName: 'user_profile_followersVisibility_enum',
 		default: 'public',
 	})
 	public followersVisibility: typeof followersVisibilities[number];

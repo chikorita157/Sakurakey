@@ -99,7 +99,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 							</SearchMarker>
 						</div>
 
-						<SearchMarker :keywords="['emoji', 'style', 'native', 'system', 'fluent', 'twemoji']">
+						<SearchMarker :keywords="['emoji', 'style', 'native', 'system', 'fluent', 'twemoji', 'tossface']">
 							<MkPreferenceContainer k="emojiStyle">
 								<div>
 									<MkRadios v-model="emojiStyle">
@@ -107,6 +107,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 										<option value="native">{{ i18n.ts.native }}</option>
 										<option value="fluentEmoji">Fluent Emoji</option>
 										<option value="twemoji">Twemoji</option>
+										<option value="tossface">Tossface</option>
 									</MkRadios>
 									<div style="margin: 8px 0 0 0; font-size: 1.5em;"><Mfm :key="emojiStyle" text="🍮🍦🍭🍩🍰🍫🍬🥞🍪"/></div>
 								</div>
@@ -196,8 +197,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 								</MkPreferenceContainer>
 							</SearchMarker>
 
-							<SearchMarker :keywords="['pinned', 'list']">
-								<MkFolder>
+							<SearchMarker v-slot="slotProps" :keywords="['pinned', 'list']">
+								<MkFolder :defaultOpen="slotProps.isParentOfTarget">
 									<template #label><SearchLabel>{{ i18n.ts.pinnedList }}</SearchLabel></template>
 									<!-- 複数ピン止め管理できるようにしたいけどめんどいので一旦ひとつのみ -->
 									<MkButton v-if="prefer.r.pinnedUserLists.value.length === 0" @click="setPinnedList()">{{ i18n.ts.add }}</MkButton>
@@ -237,6 +238,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 										<!-- If one of the other options is selected show this as a blank other -->
 										<option v-if="!useCustomSearchEngine" value="">{{ i18n.ts.searchEngineOther }}</option>
 									</MkSelect>
+
+									<div v-if="useCustomSearchEngine">
+										<MkInput v-model="searchEngine" :max="300" :manualSave="true">
+											<template #label>{{ i18n.ts.searchEngineCusomURI }}</template>
+											<template #caption>{{ i18n.ts.searchEngineCustomURIDescription }}</template>
+										</MkInput>
+									</div>
 								</MkPreferenceContainer>
 							</SearchMarker>
 
@@ -267,6 +275,14 @@ SPDX-License-Identifier: AGPL-3.0-only
 									<MkPreferenceContainer k="showClipButtonInNoteFooter">
 										<MkSwitch v-model="showClipButtonInNoteFooter">
 											<template #label><SearchLabel>{{ i18n.ts.showClipButtonInNoteFooter }}</SearchLabel></template>
+										</MkSwitch>
+									</MkPreferenceContainer>
+								</SearchMarker>
+
+								<SearchMarker :keywords="['footer', 'action', 'translation', 'show']">
+									<MkPreferenceContainer k="showTranslationButtonInNoteFooter">
+										<MkSwitch v-model="showTranslationButtonInNoteFooter">
+											<template #label><SearchLabel>{{ i18n.ts.showTranslationButtonInNoteFooter }}</SearchLabel></template>
 										</MkSwitch>
 									</MkPreferenceContainer>
 								</SearchMarker>
@@ -387,9 +403,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<div class="_gaps_s">
 							<SearchMarker :keywords="['remember', 'keep', 'note', 'cw']">
 								<MkPreferenceContainer k="keepCw">
-									<MkSwitch v-model="keepCw">
+									<MkSelect v-model="keepCw">
 										<template #label><SearchLabel>{{ i18n.ts.keepCw }}</SearchLabel></template>
-									</MkSwitch>
+										<template #caption><SearchKeyword>{{ i18n.ts.keepCwDescription }}</SearchKeyword></template>
+										<option :value="false">{{ i18n.ts.keepCwDisabled }}</option>>
+										<option :value="true">{{ i18n.ts.keepCwEnabled }}</option>>
+										<option value="prepend-re">{{ i18n.ts.keepCwPrependRe }}</option>
+									</MkSelect>
 								</MkPreferenceContainer>
 							</SearchMarker>
 
@@ -428,9 +448,9 @@ SPDX-License-Identifier: AGPL-3.0-only
 							</SearchMarker>
 						</div>
 
-						<SearchMarker :keywords="['default', 'note', 'visibility']">
+						<SearchMarker v-slot="slotProps" :keywords="['default', 'note', 'visibility']">
 							<MkDisableSection :disabled="rememberNoteVisibility">
-								<MkFolder>
+								<MkFolder :defaultOpen="slotProps.isParentOfTarget">
 									<template #label><SearchLabel>{{ i18n.ts.defaultNoteVisibility }}</SearchLabel></template>
 									<template v-if="defaultNoteVisibility === 'public'" #suffix>{{ i18n.ts._visibility.public }}</template>
 									<template v-else-if="defaultNoteVisibility === 'home'" #suffix>{{ i18n.ts._visibility.home }}</template>
@@ -667,7 +687,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 						<SearchMarker :keywords="['font', 'size']">
 							<MkRadios v-model="fontSize">
 								<template #label><SearchLabel>{{ i18n.ts.fontSize }}</SearchLabel></template>
-								<option :value="null"><span style="font-size: 14px;">Aa</span></option>
+								<option value="0"><span style="font-size: 14px;">Aa</span></option>
 								<option value="1"><span style="font-size: 15px;">Aa</span></option>
 								<option value="2"><span style="font-size: 16px;">Aa</span></option>
 								<option value="3"><span style="font-size: 17px;">Aa</span></option>
@@ -779,7 +799,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 							<SearchMarker :keywords="['corner', 'radius']">
 								<MkRadios v-model="cornerRadius">
 									<template #label><SearchLabel>{{ i18n.ts.cornerRadius }}</SearchLabel></template>
-									<option :value="null"><i class="sk-icons sk-shark sk-icons-lg" style="top: 2px;position: relative;"></i> Sharkey</option>
+									<option value="sharkey"><i class="sk-icons sk-shark sk-icons-lg" style="top: 2px;position: relative;"></i> Sharkey</option>
 									<option value="misskey"><i class="sk-icons sk-misskey sk-icons-lg" style="top: 2px;position: relative;"></i> Misskey</option>
 								</MkRadios>
 							</SearchMarker>
@@ -842,24 +862,28 @@ SPDX-License-Identifier: AGPL-3.0-only
 							</MkPreferenceContainer>
 						</SearchMarker>
 
-						<SearchMarker :keywords="['boost', 'show', 'visib', 'selector']">
+						<SearchMarker v-slot="slotProps" :keywords="['boost', 'show', 'visib', 'selector']">
 							<MkFolder :defaultOpen="slotProps.isParentOfTarget">
 								<template #label><SearchLabel>{{ i18n.ts.boostSettings }}</SearchLabel></template>
 								<div class="_gaps_m">
-									<MkPreferenceContainer k="showVisibilitySelectorOnBoost">
-										<MkSwitch v-model="showVisibilitySelectorOnBoost">
-											<template #label><SearchLabel>{{ i18n.ts.showVisibilitySelectorOnBoost }}</SearchLabel></template>
-											<template #caption>{{ i18n.ts.showVisibilitySelectorOnBoostDescription }}</template>
-										</MkSwitch>
-									</MkPreferenceContainer>
-									<MkPreferenceContainer k="visibilityOnBoost">
-										<MkSelect v-model="visibilityOnBoost">
-											<template #label><SearchLabel>{{ i18n.ts.visibilityOnBoost }}</SearchLabel></template>
-											<option value="public">{{ i18n.ts._visibility['public'] }}</option>
-											<option value="home">{{ i18n.ts._visibility['home'] }}</option>
-											<option value="followers">{{ i18n.ts._visibility['followers'] }}</option>
-										</MkSelect>
-									</MkPreferenceContainer>
+									<SearchMarker :keywords="['boost', 'show', 'visib', 'selector']">
+										<MkPreferenceContainer k="showVisibilitySelectorOnBoost">
+											<MkSwitch v-model="showVisibilitySelectorOnBoost">
+												<template #label><SearchLabel>{{ i18n.ts.showVisibilitySelectorOnBoost }}</SearchLabel></template>
+												<template #caption>{{ i18n.ts.showVisibilitySelectorOnBoostDescription }}</template>
+											</MkSwitch>
+										</MkPreferenceContainer>
+									</SearchMarker>
+									<SearchMarker :keywords="['boost', 'visib']">
+										<MkPreferenceContainer k="visibilityOnBoost">
+											<MkSelect v-model="visibilityOnBoost">
+												<template #label><SearchLabel>{{ i18n.ts.visibilityOnBoost }}</SearchLabel></template>
+												<option value="public">{{ i18n.ts._visibility['public'] }}</option>
+												<option value="home">{{ i18n.ts._visibility['home'] }}</option>
+												<option value="followers">{{ i18n.ts._visibility['followers'] }}</option>
+											</MkSelect>
+										</MkPreferenceContainer>
+									</SearchMarker>
 								</div>
 							</MkFolder>
 						</SearchMarker>
@@ -891,8 +915,8 @@ SPDX-License-Identifier: AGPL-3.0-only
 							</MkPreferenceContainer>
 						</SearchMarker>
 
-						<SearchMarker :keywords="['emoji', 'dictionary', 'additional', 'extra']">
-							<MkFolder>
+						<SearchMarker v-slot="slotProps" :keywords="['emoji', 'dictionary', 'additional', 'extra']">
+							<MkFolder :defaultOpen="slotProps.isParentOfTarget">
 								<template #label><SearchLabel>{{ i18n.ts.additionalEmojiDictionary }}</SearchLabel></template>
 								<div class="_buttons">
 									<template v-for="lang in emojiIndexLangs" :key="lang">
@@ -954,7 +978,6 @@ import { worksOnInstance } from '@/utility/favicon-dot.js';
 
 const $i = ensureSignin();
 
-const lang = ref(miLocalStorage.getItem('lang'));
 const dataSaver = ref(prefer.s.dataSaver);
 
 const overridedDeviceKind = prefer.model('overridedDeviceKind');
@@ -964,6 +987,7 @@ const serverDisconnectedBehavior = prefer.model('serverDisconnectedBehavior');
 const hemisphere = prefer.model('hemisphere');
 const showNoteActionsOnlyHover = prefer.model('showNoteActionsOnlyHover');
 const showClipButtonInNoteFooter = prefer.model('showClipButtonInNoteFooter');
+const showTranslationButtonInNoteFooter = prefer.model('showTranslationButtonInNoteFooter');
 const collapseRenotes = prefer.model('collapseRenotes');
 const advancedMfm = prefer.model('advancedMfm');
 const showReactionsCount = prefer.model('showReactionsCount');
@@ -1013,9 +1037,6 @@ const contextMenu = prefer.model('contextMenu');
 const menuStyle = prefer.model('menuStyle');
 const makeEveryTextElementsSelectable = prefer.model('makeEveryTextElementsSelectable');
 
-const fontSize = ref(miLocalStorage.getItem('fontSize'));
-const useSystemFont = ref(miLocalStorage.getItem('useSystemFont') != null);
-
 // Sharkey options
 const collapseNotesRepliedTo = prefer.model('collapseNotesRepliedTo');
 const showTickerOnReplies = prefer.model('showTickerOnReplies');
@@ -1031,7 +1052,6 @@ const notificationClickable = prefer.model('notificationClickable');
 const warnExternalUrl = prefer.model('warnExternalUrl');
 const showVisibilitySelectorOnBoost = prefer.model('showVisibilitySelectorOnBoost');
 const visibilityOnBoost = prefer.model('visibilityOnBoost');
-const cornerRadius = ref(miLocalStorage.getItem('cornerRadius'));
 const oneko = prefer.model('oneko');
 const numberOfReplies = prefer.model('numberOfReplies');
 const autoloadConversation = prefer.model('autoloadConversation');
@@ -1039,40 +1059,13 @@ const clickToOpen = prefer.model('clickToOpen');
 const useCustomSearchEngine = computed(() => !Object.keys(searchEngineMap).includes(searchEngine.value));
 const defaultCW = ref($i.defaultCW);
 const defaultCWPriority = ref($i.defaultCWPriority);
-
-watch(lang, () => {
-	miLocalStorage.setItem('lang', lang.value as string);
-	miLocalStorage.removeItem('locale');
-	miLocalStorage.removeItem('localeVersion');
-});
-
-watch(fontSize, () => {
-	if (fontSize.value == null) {
-		miLocalStorage.removeItem('fontSize');
-	} else {
-		miLocalStorage.setItem('fontSize', fontSize.value);
-	}
-});
-
-watch(useSystemFont, () => {
-	if (useSystemFont.value) {
-		miLocalStorage.setItem('useSystemFont', 't');
-	} else {
-		miLocalStorage.removeItem('useSystemFont');
-	}
-});
-
-watch(cornerRadius, () => {
-	if (cornerRadius.value == null) {
-		miLocalStorage.removeItem('cornerRadius');
-	} else {
-		miLocalStorage.setItem('cornerRadius', cornerRadius.value);
-	}
-});
+const lang = prefer.model('lang');
+const fontSize = prefer.model('fontSize');
+const useSystemFont = prefer.model('useSystemFont');
+const cornerRadius = prefer.model('cornerRadius');
 
 watch([
 	hemisphere,
-	lang,
 	enableInfiniteScroll,
 	showNoteActionsOnlyHover,
 	overridedDeviceKind,
@@ -1094,9 +1087,8 @@ watch([
 	useStickyIcons,
 	keepScreenOn,
 	contextMenu,
-	fontSize,
-	useSystemFont,
 	makeEveryTextElementsSelectable,
+	noteDesign,
 ], async () => {
 	await reloadAsk({ reason: i18n.ts.reloadToApplySetting, unison: true });
 });

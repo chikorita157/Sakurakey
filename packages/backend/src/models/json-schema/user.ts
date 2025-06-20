@@ -73,6 +73,16 @@ export const packedUserLiteSchema = {
 			type: 'string',
 			nullable: true, optional: false,
 		},
+		description: {
+			type: 'string',
+			nullable: true, optional: false,
+			example: 'Hi masters, I am Ai!',
+		},
+		createdAt: {
+			type: 'string',
+			nullable: false, optional: false,
+			format: 'date-time',
+		},
 		avatarDecorations: {
 			type: 'array',
 			nullable: false, optional: false,
@@ -200,6 +210,10 @@ export const packedUserLiteSchema = {
 					type: 'string',
 					nullable: true, optional: false,
 				},
+				isSilenced: {
+					type: 'boolean',
+					nullable: false, optional: false,
+				},
 			},
 		},
 		emojis: {
@@ -236,6 +250,14 @@ export const packedUserLiteSchema = {
 				},
 			},
 		},
+		attributionDomains: {
+			type: 'array',
+			nullable: false, optional: false,
+			items: {
+				type: 'string',
+				nullable: false, optional: false,
+			},
+		},
 	},
 } as const;
 
@@ -265,11 +287,6 @@ export const packedUserDetailedNotMeOnlySchema = {
 				format: 'id',
 				nullable: false, optional: false,
 			},
-		},
-		createdAt: {
-			type: 'string',
-			nullable: false, optional: false,
-			format: 'date-time',
 		},
 		updatedAt: {
 			type: 'string',
@@ -311,11 +328,6 @@ export const packedUserDetailedNotMeOnlySchema = {
 			type: 'boolean',
 			nullable: false, optional: false,
 			example: false,
-		},
-		description: {
-			type: 'string',
-			nullable: true, optional: false,
-			example: 'Hi masters, I am Ai!',
 		},
 		location: {
 			type: 'string',

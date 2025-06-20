@@ -65,14 +65,25 @@ SPDX-License-Identifier: AGPL-3.0-only
 			</footer>
 		</article>
 	</component>
+
+	<I18n v-if="attributionUser" :src="i18n.ts.writtenBy" :class="$style.linkAttribution" tag="p">
+		<template #user>
+			<MkA v-user-preview="attributionUser.id" :to="userPage(attributionUser)">
+				<MkAvatar :class="$style.linkAttributionIcon" :user="attributionUser"/>
+				<MkUserName :user="attributionUser" style="color: var(--MI_THEME-accent)"/>
+			</MkA>
+		</template>
+	</I18n>
+	<p v-else-if="linkAttribution" :class="$style.linkAttribution"><MkEllipsis/></p>
+
 	<template v-if="showActions">
 		<div v-if="tweetId" :class="$style.action">
 			<MkButton :small="true" inline @click="tweetExpanded = true">
 				<i class="ti ti-brand-x"></i> {{ i18n.ts.expandTweet }}
 			</MkButton>
 		</div>
-		<div v-if="showAsQuote && activityPub && !theNote && !fetchingTheNote" :class="$style.action">
-			<MkButton :small="true" inline @click="fetchNote()">
+		<div v-if="showAsQuote && activityPub && !theNote && $i" :class="$style.action">
+			<MkButton :small="true" :disabled="!!fetching || fetchingTheNote" inline @click="() => refresh(true)">
 				<i class="ti ti-note"></i> {{ i18n.ts.fetchLinkedNote }}
 			</MkButton>
 		</div>
@@ -88,12 +99,24 @@ SPDX-License-Identifier: AGPL-3.0-only
 </div>
 </template>
 
+<script lang="ts">
+// eslint-disable-next-line import/order
+import type { summaly } from '@misskey-dev/summaly';
+
+export type SummalyResult = Awaited<ReturnType<typeof summaly>> & {
+	haveNoteLocally?: boolean,
+	linkAttribution?: {
+		userId: string,
+	}
+};
+</script>
+
 <script lang="ts" setup>
 import { defineAsyncComponent, onDeactivated, onUnmounted, ref } from 'vue';
 import { url as local } from '@@/js/config.js';
 import { versatileLang } from '@@/js/intl-const.js';
 import * as Misskey from 'misskey-js';
-import type { summaly } from '@misskey-dev/summaly';
+import { maybeMakeRelative } from '@@/js/url.js';
 import { i18n } from '@/i18n.js';
 import * as os from '@/os.js';
 import { deviceKind } from '@/utility/device-kind.js';
@@ -104,9 +127,8 @@ import { prefer } from '@/preferences.js';
 import { misskeyApi } from '@/utility/misskey-api.js';
 import { warningExternalWebsite } from '@/utility/warning-external-website.js';
 import DynamicNoteSimple from '@/components/DynamicNoteSimple.vue';
-import { maybeMakeRelative } from '@@/js/url.js';
-
-type SummalyResult = Awaited<ReturnType<typeof summaly>>;
+import { $i } from '@/i';
+import { userPage } from '@/filters/user.js';
 
 const props = withDefaults(defineProps<{
 	url: string;
@@ -115,12 +137,18 @@ const props = withDefaults(defineProps<{
 	showAsQuote?: boolean;
 	showActions?: boolean;
 	skipNoteIds?: (string | undefined)[];
+	previewHint?: SummalyResult;
+	noteHint?: Misskey.entities.Note | null;
+	attributionHint?: Misskey.entities.User | null;
 }>(), {
 	detail: false,
 	compact: false,
 	showAsQuote: false,
 	showActions: true,
 	skipNoteIds: undefined,
+	previewHint: undefined,
+	noteHint: undefined,
+	attributionHint: undefined,
 });
 
 const MOBILE_THRESHOLD = 500;
@@ -131,7 +159,7 @@ const maybeRelativeUrl = maybeMakeRelative(props.url, local);
 const self = maybeRelativeUrl !== props.url;
 const attr = self ? 'to' : 'href';
 const target = self ? null : '_blank';
-const fetching = ref(true);
+const fetching = ref<Promise<void> | null>(null);
 const title = ref<string | null>(null);
 const description = ref<string | null>(null);
 const thumbnail = ref<string | null>(null);
@@ -139,11 +167,16 @@ const icon = ref<string | null>(null);
 const sitename = ref<string | null>(null);
 const sensitive = ref<boolean>(false);
 const activityPub = ref<string | null>(null);
-const player = ref({
+const player = ref<SummalyResult['player']>({
 	url: null,
 	width: null,
 	height: null,
-} as SummalyResult['player']);
+	allow: [],
+});
+const linkAttribution = ref<{
+	userId: string,
+} | null>(null);
+const attributionUser = ref<Misskey.entities.User | null>(null);
 const playerEnabled = ref(false);
 const tweetId = ref<string | null>(null);
 const tweetExpanded = ref(props.detail);
@@ -152,12 +185,35 @@ const tweetHeight = ref(150);
 const unknownUrl = ref(false);
 const theNote = ref<Misskey.entities.Note | null>(null);
 const fetchingTheNote = ref(false);
+const fetchingAttribution = ref<Promise<void> | null>(null);
 
 onDeactivated(() => {
 	playerEnabled.value = false;
 });
 
-async function fetchNote() {
+async function fetchAttribution(initial: boolean): Promise<void> {
+	if (!linkAttribution.value) return;
+	if (attributionUser.value) return;
+	if (fetchingAttribution.value) return fetchingAttribution.value;
+
+	return fetchingAttribution.value ??= (async (userId: string): Promise<void> => {
+		try {
+			if (initial && props.attributionHint !== undefined) {
+				attributionUser.value = props.attributionHint;
+			} else {
+				attributionUser.value = await misskeyApi('users/show', { userId });
+			}
+		} catch {
+			// makes the loading ellipsis vanish.
+			linkAttribution.value = null;
+		} finally {
+			// Reset promise to mark as done
+			fetchingAttribution.value = null;
+		}
+	})(linkAttribution.value.userId);
+}
+
+async function fetchNote(initial: boolean) {
 	if (!props.showAsQuote) return;
 	if (!activityPub.value) return;
 	if (theNote.value) return;
@@ -165,22 +221,29 @@ async function fetchNote() {
 
 	fetchingTheNote.value = true;
 	try {
-		const response = await misskeyApi('ap/show', { uri: activityPub.value });
+		const response = (initial && props.noteHint !== undefined)
+			? { type: 'Note', object: props.noteHint }
+			: await misskeyApi('ap/show', { uri: activityPub.value });
 		if (response.type !== 'Note') return;
+		if (!response.object) {
+			activityPub.value = null;
+			theNote.value = null;
+			return;
+		}
 		const theNoteId = response['object'].id;
 		if (theNoteId && props.skipNoteIds && props.skipNoteIds.includes(theNoteId)) {
 			hidePreview.value = true;
 			return;
 		}
 		theNote.value = response['object'];
-		fetchingTheNote.value = false;
 	} catch (err) {
 		if (_DEV_) {
 			console.error(`failed to extract note for preview of ${activityPub.value}`, err);
 		}
 		activityPub.value = null;
-		fetchingTheNote.value = false;
 		theNote.value = null;
+	} finally {
+		fetchingTheNote.value = false;
 	}
 }
 
@@ -192,45 +255,69 @@ if (requestUrl.hostname === 'twitter.com' || requestUrl.hostname === 'mobile.twi
 	if (m) tweetId.value = m[1];
 }
 
+// This is now handled on the backend
+/*
 if (requestUrl.hostname === 'music.youtube.com' && requestUrl.pathname.match('^/(?:watch|channel)')) {
 	requestUrl.hostname = 'www.youtube.com';
 }
 
 requestUrl.hash = '';
+*/
 
-window.fetch(`/url?url=${encodeURIComponent(requestUrl.href)}&lang=${versatileLang}`)
-	.then(res => {
-		if (!res.ok) {
-			if (_DEV_) {
-				console.warn(`[HTTP${res.status}] Failed to fetch url preview`);
-			}
-			return null;
-		}
-
-		return res.json();
-	})
-	.then((info: SummalyResult & { haveNoteLocally?: boolean } | null) => {
-		if (!info || info.url == null) {
-			fetching.value = false;
-			unknownUrl.value = true;
-			return;
-		}
-
-		fetching.value = false;
-		unknownUrl.value = false;
-
-		title.value = info.title;
-		description.value = info.description;
-		thumbnail.value = info.thumbnail;
-		icon.value = info.icon;
-		sitename.value = info.sitename;
-		player.value = info.player;
-		sensitive.value = info.sensitive ?? false;
-		activityPub.value = info.activityPub;
-		if (info.haveNoteLocally) {
-			fetchNote();
-		}
+function refresh(withFetch = false, initial = false) {
+	const params = new URLSearchParams({
+		url: requestUrl.href,
+		lang: versatileLang,
 	});
+	if (withFetch) {
+		params.set('fetch', 'true');
+	}
+
+	const headers = $i ? { Authorization: `Bearer ${$i.token}` } : undefined;
+	const fetchPromise: Promise<SummalyResult | null> = (initial && props.previewHint)
+		? Promise.resolve(props.previewHint)
+		: window.fetch(`/url?${params.toString()}`, { headers })
+			.then(res => {
+				if (!res.ok) {
+					if (_DEV_) {
+						console.warn(`[HTTP${res.status}] Failed to fetch url preview`);
+					}
+					return null;
+				}
+
+				return res.json();
+			});
+	return fetching.value ??= fetchPromise
+		.then(async (info: SummalyResult | null) => {
+			unknownUrl.value = info == null;
+			title.value = info?.title ?? null;
+			description.value = info?.description ?? null;
+			thumbnail.value = info?.thumbnail ?? null;
+			icon.value = info?.icon ?? null;
+			sitename.value = info?.sitename ?? null;
+			player.value = info?.player ?? {
+				url: null,
+				width: null,
+				height: null,
+				allow: [],
+			};
+			sensitive.value = info?.sensitive ?? false;
+			activityPub.value = info?.activityPub ?? null;
+			linkAttribution.value = info?.linkAttribution ?? null;
+
+			// These will be populated by the fetch* functions
+			attributionUser.value = null;
+			theNote.value = null;
+
+			await Promise.all([
+				fetchAttribution(initial),
+				fetchNote(initial),
+			]);
+		})
+		.finally(() => {
+			fetching.value = null;
+		});
+}
 
 function adjustTweetHeight(message: MessageEvent) {
 	if (message.origin !== 'https://platform.twitter.com') return;
@@ -256,6 +343,9 @@ window.addEventListener('message', adjustTweetHeight);
 onUnmounted(() => {
 	window.removeEventListener('message', adjustTweetHeight);
 });
+
+// Load initial data
+refresh(false, true);
 </script>
 
 <style lang="scss" module>
@@ -339,7 +429,7 @@ onUnmounted(() => {
 .body {
 	position: relative;
 	box-sizing: border-box;
-	padding: 16px;
+	padding: 16px !important; // Unfortunately needed to win a specificity race with MkNoteSimple / SkNoteSimple
 }
 
 .header {
@@ -375,6 +465,28 @@ onUnmounted(() => {
 	font-size: 0.8em;
 	line-height: 16px;
 	vertical-align: top;
+}
+
+.linkAttributionIcon {
+	display: inline-block;
+	width: 16px;
+	height: 16px;
+	margin-left: 0.25em;
+	margin-right: 0.25em;
+	vertical-align: middle;
+	border-radius: 50%;
+	* {
+		border-radius: 4px;
+	}
+}
+
+.linkAttribution {
+	width: 100%;
+	font-size: 0.8em;
+	display: inline-block;
+	margin: auto;
+	padding-top: 0.5em;
+	text-align: right;
 }
 
 .action {

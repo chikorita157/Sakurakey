@@ -61,12 +61,30 @@ export default abstract class Channel {
 		return this.connection.subscriber;
 	}
 
+	/**
+	 * Checks if a note is visible to the current user *excluding* blocks and mutes.
+	 */
+	protected isNoteVisibleToMe(note: Packed<'Note'>): boolean {
+		if (note.visibility === 'public') return true;
+		if (note.visibility === 'home') return true;
+		if (!this.user) return false;
+		if (this.user.id === note.userId) return true;
+		if (note.visibility === 'followers') {
+			return this.following.has(note.userId);
+		}
+		if (!note.visibleUserIds) return false;
+		return note.visibleUserIds.includes(this.user.id);
+	}
+
 	/*
 	 * ミュートとブロックされてるを処理する
 	 */
 	protected isNoteMutedOrBlocked(note: Packed<'Note'>): boolean {
+		// Ignore notes that require sign-in
+		if (note.user.requireSigninToViewContents && !this.user) return true;
+
 		// 流れてきたNoteがインスタンスミュートしたインスタンスが関わる
-		if (isInstanceMuted(note, new Set<string>(this.userProfile?.mutedInstances ?? [])) && !this.following[note.userId]) return true;
+		if (isInstanceMuted(note, this.userMutedInstances) && !this.following.has(note.userId)) return true;
 
 		// 流れてきたNoteがミュートしているユーザーが関わる
 		if (isUserRelated(note, this.userIdsWhoMeMuting)) return true;
@@ -78,6 +96,15 @@ export default abstract class Channel {
 
 		// If it's a boost (pure renote) then we need to check the target as well
 		if (isPackedPureRenote(note) && note.renote && this.isNoteMutedOrBlocked(note.renote)) return true;
+
+		// Hide silenced notes
+		if (note.user.isSilenced || note.user.instance?.isSilenced) {
+			if (this.user == null) return true;
+			if (this.user.id === note.userId) return false;
+			if (!this.following.has(note.userId)) return true;
+		}
+
+		// TODO muted threads
 
 		return false;
 	}

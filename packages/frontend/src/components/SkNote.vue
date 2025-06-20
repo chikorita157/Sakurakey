@@ -88,13 +88,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 							:isAnim="allowAnim"
 							:isBlock="true"
 						/>
-						<div v-if="translating || translation" :class="$style.translation">
-							<MkLoading v-if="translating" mini/>
-							<div v-else-if="translation">
-								<b>{{ i18n.tsx.translatedFrom({ x: translation.sourceLang }) }}: </b>
-								<Mfm :text="translation.text" :isBlock="true" :author="appearNote.user" :nyaize="'respect'" :emojiUrls="appearNote.emojis" class="_selectable"/>
-							</div>
-						</div>
+						<SkNoteTranslation :note="note" :translation="translation" :translating="translating"></SkNoteTranslation>
 						<MkButton v-if="!allowAnim && animated" :class="$style.playMFMButton" :small="true" @click="animatedMFM()" @click.stop><i class="ph-play ph-bold ph-lg "></i> {{ i18n.ts._animatedMFM.play }}</MkButton>
 						<MkButton v-else-if="!prefer.s.animatedMfm && allowAnim && animated" :class="$style.playMFMButton" :small="true" @click="animatedMFM()" @click.stop><i class="ph-stop ph-bold ph-lg "></i> {{ i18n.ts._animatedMFM.stop }}</MkButton>
 					</div>
@@ -103,7 +97,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 					</div>
 					<MkPoll v-if="appearNote.poll" :noteId="appearNote.id" :poll="appearNote.poll" :local="!appearNote.user.host" :author="appearNote.user" :emojiUrls="appearNote.emojis" :class="$style.poll" @click.stop/>
 					<div v-if="isEnabledUrlPreview">
-						<MkUrlPreview v-for="url in urls" :key="url" :url="url" :compact="true" :detail="false" :showAsQuote="!appearNote.user.rejectQuotes" :skipNoteIds="[appearNote.renote?.id]" :class="$style.urlPreview" @click.stop/>
+						<SkUrlPreviewGroup :sourceUrls="urls" :sourceNote="appearNote" :compact="true" :detail="false" :showAsQuote="!appearNote.user.rejectQuotes" :skipNoteIds="selfNoteIds" :class="$style.urlPreview" @click.stop/>
 					</div>
 					<div v-if="appearNote.renote" :class="$style.quote"><SkNoteSimple :note="appearNote.renote" :class="$style.quoteNote"/></div>
 					<button v-if="isLong && collapsed" :class="$style.collapsed" class="_button" @click.stop @click="collapsed = false">
@@ -120,7 +114,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<MkA :to="`/notes/${appearNote.id}/reactions`" :class="[$style.reactionOmitted]">{{ i18n.ts.more }}</MkA>
 				</template>
 			</MkReactionsViewer>
-			<footer :class="$style.footer">
+			<footer :class="$style.footer" class="_gaps _h_gaps" tabindex="0" role="group" :aria-label="i18n.ts.noteFooterLabel">
 				<button :class="$style.footerButton" class="_button" @click.stop @click="reply()">
 					<i class="ti ti-arrow-back-up"></i>
 					<p v-if="appearNote.repliesCount > 0" :class="$style.footerButtonCount">{{ number(appearNote.repliesCount) }}</p>
@@ -161,10 +155,13 @@ SPDX-License-Identifier: AGPL-3.0-only
 					<i v-else class="ph-smiley ph-bold ph-lg"></i>
 					<p v-if="(appearNote.reactionAcceptance === 'likeOnly' || prefer.s.showReactionsCount) && appearNote.reactionCount > 0" :class="$style.footerButtonCount">{{ number(appearNote.reactionCount) }}</p>
 				</button>
-				<button v-if="prefer.s.showClipButtonInNoteFooter" ref="clipButton" :class="$style.footerButton" class="_button" @mousedown.prevent="clip()">
+				<button v-if="prefer.s.showClipButtonInNoteFooter" ref="clipButton" :class="$style.footerButton" class="_button" @click.stop="clip()">
 					<i class="ti ti-paperclip"></i>
 				</button>
-				<button ref="menuButton" :class="$style.footerButton" class="_button" @mousedown.prevent="showMenu()">
+				<button v-if="prefer.s.showTranslationButtonInNoteFooter && policies.canUseTranslator && instance.translatorAvailable" class="_button" :class="$style.footerButton" :disabled="translating || !!translation" @click.stop="translate()">
+					<i class="ti ti-language-hiragana"></i>
+				</button>
+				<button ref="menuButton" :class="$style.footerButton" class="_button" @click.stop="showMenu()">
 					<i class="ti ti-dots"></i>
 				</button>
 			</footer>
@@ -172,30 +169,7 @@ SPDX-License-Identifier: AGPL-3.0-only
 	</article>
 </div>
 <div v-else-if="!hardMuted" :class="$style.muted" @click="muted = false">
-	<I18n v-if="muted === 'sensitiveMute'" :src="i18n.ts.userSaysSomethingSensitive" tag="small">
-		<template #name>
-			<MkA v-user-preview="appearNote.userId" :to="userPage(appearNote.user)">
-				<MkUserName :user="appearNote.user"/>
-			</MkA>
-		</template>
-	</I18n>
-	<I18n v-else-if="showSoftWordMutedWord !== true" :src="i18n.ts.userSaysSomething" tag="small">
-		<template #name>
-			<MkA v-user-preview="appearNote.userId" :to="userPage(appearNote.user)">
-				<MkUserName :user="appearNote.user"/>
-			</MkA>
-		</template>
-	</I18n>
-	<I18n v-else :src="i18n.ts.userSaysSomethingAbout" tag="small">
-		<template #name>
-			<MkA v-user-preview="appearNote.userId" :to="userPage(appearNote.user)">
-				<MkUserName :user="appearNote.user"/>
-			</MkA>
-		</template>
-		<template #word>
-			{{ Array.isArray(muted) ? muted.map(words => Array.isArray(words) ? words.join() : words).slice(0, 3).join(' ') : muted }}
-		</template>
-	</I18n>
+	<SkMutedNote :muted="muted" :note="appearNote"></SkMutedNote>
 </div>
 <div v-else>
 	<!--
@@ -207,11 +181,11 @@ SPDX-License-Identifier: AGPL-3.0-only
 
 <script lang="ts" setup>
 import { computed, inject, onMounted, ref, useTemplateRef, watch, provide } from 'vue';
-import * as mfm from '@transfem-org/sfm-js';
+import * as mfm from 'mfm-js';
 import * as Misskey from 'misskey-js';
 import { isLink } from '@@/js/is-link.js';
 import { shouldCollapsed } from '@@/js/collapsed.js';
-import { host } from '@@/js/config.js';
+import * as config from '@@/js/config.js';
 import { computeMergedCw } from '@@/js/compute-merged-cw.js';
 import type { Ref } from 'vue';
 import type { MenuItem } from '@/types/menu.js';
@@ -230,7 +204,7 @@ import MkUsersTooltip from '@/components/MkUsersTooltip.vue';
 import MkUrlPreview from '@/components/MkUrlPreview.vue';
 import MkButton from '@/components/MkButton.vue';
 import { pleaseLogin } from '@/utility/please-login.js';
-import { checkWordMute } from '@/utility/check-word-mute.js';
+import { checkMutes } from '@/utility/check-word-mute.js';
 import { notePage } from '@/filters/note.js';
 import { userPage } from '@/filters/user.js';
 import number from '@/filters/number.js';
@@ -242,7 +216,7 @@ import { extractUrlFromMfm } from '@/utility/extract-url-from-mfm.js';
 import { checkAnimationFromMfm } from '@/utility/check-animated-mfm.js';
 import { $i } from '@/i.js';
 import { i18n } from '@/i18n.js';
-import { getAbuseNoteMenu, getCopyNoteLinkMenu, getNoteClipMenu, getNoteMenu } from '@/utility/get-note-menu.js';
+import { getAbuseNoteMenu, getCopyNoteLinkMenu, getNoteClipMenu, getNoteMenu, translateNote } from '@/utility/get-note-menu.js';
 import { getNoteVersionsMenu } from '@/utility/get-note-versions-menu.js';
 import { useNoteCapture } from '@/use/use-note-capture.js';
 import { deepClone } from '@/utility/clone.js';
@@ -252,13 +226,18 @@ import { getNoteSummary } from '@/utility/get-note-summary.js';
 import MkRippleEffect from '@/components/MkRippleEffect.vue';
 import { showMovedDialog } from '@/utility/show-moved-dialog.js';
 import { boostMenuItems, computeRenoteTooltip } from '@/utility/boost-quote.js';
-import { isEnabledUrlPreview } from '@/instance.js';
+import { instance, isEnabledUrlPreview, policies } from '@/instance.js';
 import { focusPrev, focusNext } from '@/utility/focus.js';
 import { getAppearNote } from '@/utility/get-appear-note.js';
 import { prefer } from '@/preferences.js';
 import { getPluginHandlers } from '@/plugin.js';
 import { DI } from '@/di.js';
 import { useRouter } from '@/router.js';
+import SkMutedNote from '@/components/SkMutedNote.vue';
+import SkNoteTranslation from '@/components/SkNoteTranslation.vue';
+import { getSelfNoteIds } from '@/utility/get-self-note-ids.js';
+import { extractPreviewUrls } from '@/utility/extract-preview-urls.js';
+import SkUrlPreviewGroup from '@/components/SkUrlPreviewGroup.vue';
 
 const props = withDefaults(defineProps<{
 	note: Misskey.entities.Note;
@@ -278,8 +257,6 @@ const emit = defineEmits<{
 
 const router = useRouter();
 
-const inTimeline = inject<boolean>('inTimeline', false);
-const tl_withSensitive = inject<Ref<boolean>>('tl_withSensitive', ref(true));
 const inChannel = inject('inChannel', null);
 const currentClip = inject<Ref<Misskey.entities.Clip> | null>('currentClip', null);
 
@@ -328,15 +305,14 @@ const galleryEl = useTemplateRef('galleryEl');
 const isMyRenote = $i && ($i.id === note.value.userId);
 const showContent = ref(prefer.s.uncollapseCW);
 const parsed = computed(() => appearNote.value.text ? mfm.parse(appearNote.value.text) : null);
-const urls = computed(() => parsed.value ? extractUrlFromMfm(parsed.value).filter((url) => appearNote.value.renote?.url !== url && appearNote.value.renote?.uri !== url) : null);
-const isLong = shouldCollapsed(appearNote.value, urls.value ?? []);
+const urls = computed(() => parsed.value ? extractPreviewUrls(appearNote.value, parsed.value) : []);
+const selfNoteIds = computed(() => getSelfNoteIds(props.note));
+const isLong = shouldCollapsed(appearNote.value, urls.value);
 const collapsed = ref(prefer.s.expandLongNote && appearNote.value.cw == null && isLong ? false : appearNote.value.cw == null && isLong);
 const isDeleted = ref(false);
 const renoted = ref(false);
-const muted = ref(checkMute(appearNote.value, $i?.mutedWords));
-const hardMuted = ref(props.withHardMute && checkMute(appearNote.value, $i?.hardMutedWords, true));
-const showSoftWordMutedWord = computed(() => prefer.s.showSoftWordMutedWord);
-const translation = ref<Misskey.entities.NotesTranslateResponse | null>(null);
+const { muted, hardMuted } = checkMutes(appearNote.value, props.withHardMute);
+const translation = ref<Misskey.entities.NotesTranslateResponse | false | null>(null);
 const translating = ref(false);
 const showTicker = (prefer.s.instanceTicker === 'always') || (prefer.s.instanceTicker === 'remote' && appearNote.value.user.instance);
 const canRenote = computed(() => ['public', 'home'].includes(appearNote.value.visibility) || (appearNote.value.visibility === 'followers' && appearNote.value.userId === $i?.id));
@@ -353,37 +329,12 @@ const allowAnim = ref(prefer.s.advancedMfm && prefer.s.animatedMfm);
 
 const pleaseLoginContext = computed<OpenOnRemoteOptions>(() => ({
 	type: 'lookup',
-	url: appearNote.value.url ?? appearNote.value.uri ?? `https://${host}/notes/${appearNote.value.id}`,
+	url: appearNote.value.url ?? appearNote.value.uri ?? `${config.url}/notes/${appearNote.value.id}`,
 }));
 
 const mergedCW = computed(() => computeMergedCw(appearNote.value));
 
 const renoteTooltip = computeRenoteTooltip(renoted);
-
-/* Overload FunctionにLintが対応していないのでコメントアウト
-function checkMute(noteToCheck: Misskey.entities.Note, mutedWords: Array<string | string[]> | undefined | null, checkOnly: true): boolean;
-function checkMute(noteToCheck: Misskey.entities.Note, mutedWords: Array<string | string[]> | undefined | null, checkOnly: false): Array<string | string[]> | false | 'sensitiveMute';
-*/
-function checkMute(noteToCheck: Misskey.entities.Note, mutedWords: Array<string | string[]> | undefined | null, checkOnly = false): Array<string | string[]> | false | 'sensitiveMute' {
-	if (mutedWords != null) {
-		const result = checkWordMute(noteToCheck, $i, mutedWords);
-		if (Array.isArray(result)) return result;
-
-		const replyResult = noteToCheck.reply && checkWordMute(noteToCheck.reply, $i, mutedWords);
-		if (Array.isArray(replyResult)) return replyResult;
-
-		const renoteResult = noteToCheck.renote && checkWordMute(noteToCheck.renote, $i, mutedWords);
-		if (Array.isArray(renoteResult)) return renoteResult;
-	}
-
-	if (checkOnly) return false;
-
-	if (inTimeline && tl_withSensitive.value === false && noteToCheck.files?.some((v) => v.isSensitive)) {
-		return 'sensitiveMute';
-	}
-
-	return false;
-}
 
 let renoting = false;
 
@@ -408,6 +359,11 @@ const keymap = {
 		if (renoteCollapsed.value) return;
 		if (!prefer.s.showClipButtonInNoteFooter) return;
 		clip();
+	},
+	't': () => {
+		if (prefer.s.showTranslationButtonInNoteFooter && policies.value.canUseTranslator && instance.translatorAvailable) {
+			translate();
+		}
 	},
 	'o': () => {
 		if (renoteCollapsed.value) return;
@@ -831,6 +787,12 @@ async function clip(): Promise<void> {
 	os.popupMenu(await getNoteClipMenu({ note: note.value, isDeleted, currentClip: currentClip?.value }), clipButton.value).then(focus);
 }
 
+async function translate() {
+	if (props.mock) return;
+
+	await translateNote(appearNote.value.id, translation, translating);
+}
+
 function showRenoteMenu(): void {
 	if (props.mock) {
 		return;
@@ -960,11 +922,11 @@ function emitUpdReaction(emoji: string, delta: number) {
 	.footer {
 		display: flex;
 		align-items: center;
-		justify-content: space-between;
+		justify-content: flex-start;
 		position: relative;
 		z-index: 1;
 		margin-top: 0.4em;
-		max-width: 400px;
+		overflow-x: auto;
 	}
 
 	&:hover > .article > .main > .footer > .footerButton {
@@ -986,10 +948,6 @@ function emitUpdReaction(emoji: string, delta: number) {
 
 		.footerButton {
 			font-size: 90%;
-
-			&:not(:last-child) {
-				margin-right: 0;
-			}
 		}
 	}
 
@@ -1239,13 +1197,6 @@ function emitUpdReaction(emoji: string, delta: number) {
 	margin-right: 0.5em;
 }
 
-.translation {
-	border: solid 0.5px var(--MI_THEME-divider);
-	border-radius: var(--MI-radius);
-	padding: 12px;
-	margin-top: 8px;
-}
-
 .urlPreview {
 	margin-top: 8px;
 }
@@ -1283,10 +1234,6 @@ function emitUpdReaction(emoji: string, delta: number) {
 	margin: 0;
 	padding: 8px;
 	opacity: 0.7;
-
-	&:not(:last-child) {
-		margin-right: 1.5em;
-	}
 
 	&:hover {
 		color: var(--MI_THEME-fgHighlighted);
@@ -1404,40 +1351,12 @@ function emitUpdReaction(emoji: string, delta: number) {
 	}
 }
 
-@container (max-width: 400px) {
-	.root:not(.showActionsOnlyHover) {
-		.footerButton {
-			&:not(:last-child) {
-				margin-right: 0.2em;
-			}
-		}
-	}
-}
-
 @container (max-width: 350px) {
-	.root:not(.showActionsOnlyHover) {
-		.footerButton {
-			&:not(:last-child) {
-				margin-right: 0.1em;
-			}
-		}
-	}
-
 	.colorBar {
 		top: 6px;
 		left: 6px;
 		width: 4px;
 		height: calc(100% - 12px);
-	}
-}
-
-@container (max-width: 300px) {
-	.root:not(.showActionsOnlyHover) {
-		.footerButton {
-			&:not(:last-child) {
-				margin-right: 0.1em;
-			}
-		}
 	}
 }
 
@@ -1451,6 +1370,11 @@ function emitUpdReaction(emoji: string, delta: number) {
 	padding: 8px;
 	text-align: center;
 	opacity: 0.7;
+	cursor: pointer;
+}
+
+.muted:hover {
+	background: var(--MI_THEME-buttonBg);
 }
 
 .reactionOmitted {

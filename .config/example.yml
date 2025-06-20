@@ -121,8 +121,14 @@ db:
   user: sharkey
   pass: example-misskey-pass
 
-  # Whether disable Caching queries
-  #disableCache: true
+  ## Log a warning to the server console if any query takes longer than this to complete.
+  ## Measured in milliseconds; set to 0 to disable. (default: 300)
+  #slowQueryThreshold: 300
+
+  # If false, then query results will be cached in redis.
+  # If true (default), then queries will not be cached.
+  # This will reduce database load at the cost of increased Redis traffic and risk of bugs and unpredictable behavior.
+  #disableCache: false
 
   # Extra Connection options
   #extra:
@@ -354,6 +360,10 @@ proxyBypassHosts:
 #proxySmtp: socks4://127.0.0.1:1080 # use SOCKS4
 #proxySmtp: socks5://127.0.0.1:1080 # use SOCKS5
 
+# Path to the directory that uploaded media will be saved to
+# Defaults to a folder called "files" in the Sharkey directory
+#mediaDirectory: /var/lib/sharkey
+
 # Media Proxy
 # Reference Implementation: https://github.com/misskey-dev/media-proxy
 # * Deliver a common cache between instances
@@ -381,9 +391,24 @@ attachLdSignatureForRelays: true
 # For security reasons, uploading attachments from the intranet is prohibited,
 # but exceptions can be made from the following settings. Default value is "undefined".
 # Read changelog to learn more (Improvements of 12.90.0 (2021/09/04)).
-#allowedPrivateNetworks: [
-#  '127.0.0.1/32'
-#]
+# Some example configurations:
+#allowedPrivateNetworks:
+#  # Allow connections to 127.0.0.1 on any port
+#  - '127.0.0.1/32'
+#  # Allow connections to 127.0.0.* on any port
+#  - '127.0.0.1/24'
+#  # Allow connections to 127.0.0.1 on any port
+#  - '127.0.0.1'
+#  # Allow connections to 127.0.0.1 on any port
+#  - network: '127.0.0.1'
+#  # Allow connections to 127.0.0.1 on port 80
+#  - network: '127.0.0.1'
+#    ports: [80]
+#  # Allow connections to 127.0.0.1 on port 80 or 443
+#  - network: '127.0.0.1'
+#    ports:
+#      - 80
+#      - 443
 
 #customMOTD: ['Hello World', 'The sharks rule all', 'Shonks']
 

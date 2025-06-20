@@ -12,7 +12,7 @@ import fetch from 'node-fetch';
 import { HttpProxyAgent, HttpsProxyAgent } from 'hpagent';
 import { Inject, Injectable } from '@nestjs/common';
 import { DI } from '@/di-symbols.js';
-import type { Config } from '@/config.js';
+import type { Config, PrivateNetwork } from '@/config.js';
 import { StatusError } from '@/misc/status-error.js';
 import { bindThis } from '@/decorators.js';
 import { validateContentTypeSetAsActivityPub } from '@/core/activitypub/misc/validator.js';
@@ -20,11 +20,35 @@ import type { IObject, IObjectWithId } from '@/core/activitypub/type.js';
 import { ApUtilityService } from './activitypub/ApUtilityService.js';
 import type { Response } from 'node-fetch';
 import type { URL } from 'node:url';
+import type { Socket } from 'node:net';
 
 export type HttpRequestSendOptions = {
 	throwErrorWhenResponseNotOk: boolean;
 	validators?: ((res: Response) => void)[];
 };
+
+export function isPrivateIp(allowedPrivateNetworks: PrivateNetwork[] | undefined, ip: string, port?: number): boolean {
+	const parsedIp = ipaddr.parse(ip);
+
+	for (const { cidr, ports } of allowedPrivateNetworks ?? []) {
+		if (cidr[0].kind() === parsedIp.kind() && parsedIp.match(cidr)) {
+			if (ports == null || (port != null && ports.includes(port))) {
+				return false;
+			}
+		}
+	}
+
+	return parsedIp.range() !== 'unicast';
+}
+
+export function validateSocketConnect(allowedPrivateNetworks: PrivateNetwork[] | undefined, socket: Socket): void {
+	const address = socket.remoteAddress;
+	if (address && ipaddr.isValid(address)) {
+		if (isPrivateIp(allowedPrivateNetworks, address, socket.remotePort)) {
+			socket.destroy(new Error(`Blocked address: ${address}`));
+		}
+	}
+}
 
 declare module 'node:http' {
 	interface Agent {
@@ -44,30 +68,11 @@ class HttpRequestServiceAgent extends http.Agent {
 	public createConnection(options: net.NetConnectOpts, callback?: (err: unknown, stream: net.Socket) => void): net.Socket {
 		const socket = super.createConnection(options, callback)
 			.on('connect', () => {
-				const address = socket.remoteAddress;
 				if (process.env.NODE_ENV === 'production') {
-					if (address && ipaddr.isValid(address)) {
-						if (this.isPrivateIp(address)) {
-							socket.destroy(new Error(`Blocked address: ${address}`));
-						}
-					}
+					validateSocketConnect(this.config.allowedPrivateNetworks, socket);
 				}
 			});
 		return socket;
-	}
-
-	@bindThis
-	private isPrivateIp(ip: string): boolean {
-		const parsedIp = ipaddr.parse(ip);
-
-		for (const net of this.config.allowedPrivateNetworks ?? []) {
-			const cidr = ipaddr.parseCIDR(net);
-			if (cidr[0].kind() === parsedIp.kind() && parsedIp.match(ipaddr.parseCIDR(net))) {
-				return false;
-			}
-		}
-
-		return parsedIp.range() !== 'unicast';
 	}
 }
 
@@ -83,30 +88,11 @@ class HttpsRequestServiceAgent extends https.Agent {
 	public createConnection(options: net.NetConnectOpts, callback?: (err: unknown, stream: net.Socket) => void): net.Socket {
 		const socket = super.createConnection(options, callback)
 			.on('connect', () => {
-				const address = socket.remoteAddress;
 				if (process.env.NODE_ENV === 'production') {
-					if (address && ipaddr.isValid(address)) {
-						if (this.isPrivateIp(address)) {
-							socket.destroy(new Error(`Blocked address: ${address}`));
-						}
-					}
+					validateSocketConnect(this.config.allowedPrivateNetworks, socket);
 				}
 			});
 		return socket;
-	}
-
-	@bindThis
-	private isPrivateIp(ip: string): boolean {
-		const parsedIp = ipaddr.parse(ip);
-
-		for (const net of this.config.allowedPrivateNetworks ?? []) {
-			const cidr = ipaddr.parseCIDR(net);
-			if (cidr[0].kind() === parsedIp.kind() && parsedIp.match(ipaddr.parseCIDR(net))) {
-				return false;
-			}
-		}
-
-		return parsedIp.range() !== 'unicast';
 	}
 }
 
@@ -249,7 +235,9 @@ export class HttpRequestService {
 	}
 
 	@bindThis
-	public async getActivityJson(url: string, isLocalAddressAllowed = false): Promise<IObjectWithId> {
+	public async getActivityJson(url: string, isLocalAddressAllowed = false, allowAnonymous = false): Promise<IObjectWithId> {
+		this.apUtilityService.assertApUrl(url);
+
 		const res = await this.send(url, {
 			method: 'GET',
 			headers: {
@@ -267,7 +255,11 @@ export class HttpRequestService {
 
 		// Make sure the object ID matches the final URL (which is where it actually exists).
 		// The caller (ApResolverService) will verify the ID against the original / entry URL, which ensures that all three match.
-		this.apUtilityService.assertIdMatchesUrlAuthority(activity, res.url);
+		if (allowAnonymous && activity.id == null) {
+			activity.id = res.url;
+		} else {
+			this.apUtilityService.assertIdMatchesUrlAuthority(activity, res.url);
+		}
 
 		return activity as IObjectWithId;
 	}
@@ -339,7 +331,7 @@ export class HttpRequestService {
 		});
 
 		if (!res.ok && extra.throwErrorWhenResponseNotOk) {
-			throw new StatusError(`${res.status} ${res.statusText}`, res.status, res.statusText);
+			throw new StatusError(`request error from ${url}`, res.status, res.statusText);
 		}
 
 		if (res.ok) {
