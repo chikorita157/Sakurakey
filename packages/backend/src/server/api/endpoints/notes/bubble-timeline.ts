@@ -124,8 +124,9 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 				return true;
 			});
 
-			process.nextTick(() => {
-				if (me) {
+
+			if (me) {
+				process.nextTick(() => {
 					this.activeUsersChart.read(me);
 				});
 			}
