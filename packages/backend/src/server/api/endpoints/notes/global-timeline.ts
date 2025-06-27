@@ -68,6 +68,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 		private queryService: QueryService,
 		private roleService: RoleService,
 		private activeUsersChart: ActiveUsersChart,
+		private readonly cacheService: CacheService,
 	) {
 		super(meta, paramDef, async (ps, me) => {
 			const policies = await this.roleService.getUserPolicies(me ? me.id : null);
@@ -91,6 +92,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			if (me) {
 				this.queryService.generateMutedUserQueryForNotes(query, me);
 				this.queryService.generateBlockedUserQueryForNotes(query, me);
+				this.queryService.generateMutedNoteThreadQuery(query, me);
 			}
 
 			if (ps.withFiles) {
@@ -107,13 +109,6 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			//#endregion
 
 			const timeline = await query.limit(ps.limit).getMany();
-
-			timeline = timeline.filter(note => {
-				if (note.user?.isSilenced && me && followings && note.userId !== me.id && !followings[note.userId]) return false;
-				if (!me && note.user?.isSilenced) return false;
-				return true;
-			});
-
 
 			if (me) {
 				process.nextTick(() => {

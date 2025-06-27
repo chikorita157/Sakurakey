@@ -11,7 +11,6 @@ import { NoteEntityService } from '@/core/entities/NoteEntityService.js';
 import ActiveUsersChart from '@/core/chart/charts/active-users.js';
 import { DI } from '@/di-symbols.js';
 import { RoleService } from '@/core/RoleService.js';
-import { CacheService } from '@/core/CacheService.js';
 import { ApiError } from '../../error.js';
 
 export const meta = {
@@ -101,6 +100,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			if (me) {
 				this.queryService.generateMutedUserQueryForNotes(query, me);
 				this.queryService.generateBlockedUserQueryForNotes(query, me);
+				this.queryService.generateMutedNoteThreadQuery(query, me);
 			}
 
 			if (ps.withFiles) {
@@ -117,13 +117,6 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			//#endregion
 
 			const timeline = await query.getMany();
-
-			timeline = timeline.filter(note => {
-				if (note.user?.isSilenced && me && followings && note.userId !== me.id && !followings[note.userId]) return false;
-				if (!me && note.user?.isSilenced) return false;
-				return true;
-			});
-
 
 			if (me) {
 				process.nextTick(() => {
