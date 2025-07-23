@@ -152,7 +152,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			}
 
 			// Search notes
-			let notes = await query.limit(ps.limit).getMany();
+			let notes =  await query.getMany();
 
 			notes = notes.filter(note => {
 				if (note.user?.isSilenced && me && followings && note.userId !== me.id && !followings[note.userId]) return false;
