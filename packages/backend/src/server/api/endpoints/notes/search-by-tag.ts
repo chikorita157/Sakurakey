@@ -82,11 +82,16 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 
 		private noteEntityService: NoteEntityService,
 		private queryService: QueryService,
+
+		private cacheService: CacheService,
+		private utilityService: UtilityService,
+
 	) {
 		super(meta, paramDef, async (ps, me) => {
 			const query = this.queryService.makePaginationQuery(this.notesRepository.createQueryBuilder('note'), ps.sinceId, ps.untilId)
 				.andWhere(new Brackets(qb => qb
-					.orWhere('note.visibility = \'public\'')))
+					.orWhere('note.visibility = \'public\'')
+					.orWhere('note.visibility = \'home\''))) // keep in sync with NoteCreateService call to `hashtagService.updateHashtags()`
 				.innerJoinAndSelect('note.user', 'user')
 				.leftJoinAndSelect('note.reply', 'reply')
 				.leftJoinAndSelect('note.renote', 'renote')
@@ -101,6 +106,8 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			if (me) this.queryService.generateMutedUserRenotesQueryForNotes(query, me);
 
 			if (!this.serverSettings.enableBotTrending) query.andWhere('user.isBot = FALSE');
+
+			const followings = me ? await this.cacheService.userFollowingsCache.fetch(me.id) : {};
 
 			try {
 				if (ps.tag) {
@@ -152,8 +159,7 @@ export default class extends Endpoint<typeof meta, typeof paramDef> { // eslint-
 			}
 
 			// Search notes
-			let notes =  await query.getMany();
-
+			const notes = await query.getMany();
 			notes = notes.filter(note => {
 				if (note.user?.isSilenced && me && followings && note.userId !== me.id && !followings[note.userId]) return false;
 				if (!me && note.user?.isSilenced) return false;
