@@ -10,7 +10,10 @@ import psl from 'psl';
 import { DI } from '@/di-symbols.js';
 import type { Config } from '@/config.js';
 import { bindThis } from '@/decorators.js';
-import { MiMeta } from '@/models/Meta.js';
+import type { MiMeta } from '@/models/Meta.js';
+import type { MiInstance } from '@/models/Instance.js';
+import { IdentifiableError } from '@/misc/identifiable-error.js';
+import { EnvService } from '@/core/EnvService.js';
 
 @Injectable()
 export class UtilityService {
@@ -20,6 +23,8 @@ export class UtilityService {
 
 		@Inject(DI.meta)
 		private meta: MiMeta,
+
+		private readonly envService: EnvService,
 	) {
 	}
 
@@ -181,8 +186,8 @@ export class UtilityService {
 	}
 
 	@bindThis
-	public punyHostPSLDomain(url: string): string {
-		const urlObj = new URL(url);
+	public punyHostPSLDomain(url: string | URL): string {
+		const urlObj = typeof(url) === 'object' ? url : new URL(url);
 		const hostname = urlObj.hostname;
 		const domain = this.specialSuffix(hostname) ?? psl.get(hostname) ?? hostname;
 		const host = `${this.toPuny(domain)}${urlObj.port.length > 0 ? ':' + urlObj.port : ''}`;
@@ -211,6 +216,54 @@ export class UtilityService {
 			return new URL(url).protocol;
 		} catch {
 			return '';
+		}
+	}
+
+	/**
+	 * Verifies that a provided URL is in a format acceptable for federation.
+	 * @throws {IdentifiableError} If URL cannot be parsed
+	 * @throws {IdentifiableError} If URL is not HTTPS
+	 * @throws {IdentifiableError} If URL contains credentials
+	 */
+	@bindThis
+	public assertUrl(url: string | URL, allowHttp?: boolean): URL | never {
+		// If string, parse and validate
+		if (typeof(url) === 'string') {
+			try {
+				url = new URL(url);
+			} catch {
+				throw new IdentifiableError('0bedd29b-e3bf-4604-af51-d3352e2518af', `invalid url ${url}: not a valid URL`);
+			}
+		}
+
+		// Must be HTTPS
+		if (!this.checkHttps(url, allowHttp)) {
+			throw new IdentifiableError('0bedd29b-e3bf-4604-af51-d3352e2518af', `invalid url ${url}: unsupported protocol ${url.protocol}`);
+		}
+
+		// Must not have credentials
+		if (url.username || url.password) {
+			throw new IdentifiableError('0bedd29b-e3bf-4604-af51-d3352e2518af', `invalid url ${url}: contains embedded credentials`);
+		}
+
+		return url;
+	}
+
+	/**
+	 * Checks if the URL contains HTTPS.
+	 * Additionally, allows HTTP in non-production environments.
+	 * Based on check-https.ts.
+	 */
+	@bindThis
+	public checkHttps(url: string | URL, allowHttp = false): boolean {
+		const isNonProd = this.envService.env.NODE_ENV !== 'production';
+
+		try {
+			const proto = new URL(url).protocol;
+			return proto === 'https:' || (proto === 'http:' && (isNonProd || allowHttp));
+		} catch {
+			// Invalid URLs don't "count" as HTTPS
+			return false;
 		}
 	}
 }

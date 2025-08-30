@@ -351,6 +351,11 @@ export class CacheService implements OnApplicationShutdown {
 	}
 
 	@bindThis
+	public findOptionalUserById(userId: MiUser['id']) {
+		return this.userByIdCache.fetchMaybe(userId, async () => await this.usersRepository.findOneBy({ id: userId }) ?? undefined);
+	}
+
+	@bindThis
 	public async getFollowStats(userId: MiUser['id']): Promise<FollowStats> {
 		return await this.userFollowStatsCache.fetch(userId, async () => {
 			const stats = {

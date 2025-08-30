@@ -86,7 +86,7 @@ export function getOneApId(value: ApObject): string {
 /**
  * Get ActivityStreams Object id
  */
-export function getApId(value: string | IObject | [string | IObject], sourceForLogs?: string): string {
+export function getApId(value: unknown | [unknown] | unknown[], sourceForLogs?: string): string {
 	const id = getNullableApId(value);
 
 	if (id == null) {
@@ -102,7 +102,7 @@ export function getApId(value: string | IObject | [string | IObject], sourceForL
 /**
  * Get ActivityStreams Object id, or null if not present
  */
-export function getNullableApId(source: string | IObject | [string | IObject]): string | null {
+export function getNullableApId(source: unknown | [unknown] | unknown[]): string | null {
 	const value: unknown = fromTuple(source);
 
 	if (value != null) {
@@ -276,7 +276,7 @@ export interface IActor extends IObject {
 	followers?: string | ICollection | IOrderedCollection;
 	following?: string | ICollection | IOrderedCollection;
 	featured?: string | IOrderedCollection;
-	outbox: string | IOrderedCollection;
+	outbox?: string | IOrderedCollection;
 	endpoints?: {
 		sharedInbox?: string;
 	};
