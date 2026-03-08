@@ -10,9 +10,10 @@ import type { Packed } from '@/misc/json-schema.js';
 import type { NotificationService } from '@/core/NotificationService.js';
 import { bindThis } from '@/decorators.js';
 import { CacheService } from '@/core/CacheService.js';
-import { MiFollowing, MiUserProfile } from '@/models/_.js';
+import { MiFollowing, MiUserProfile, NotesRepository } from '@/models/_.js';
 import type { StreamEventEmitter, GlobalEvents } from '@/core/GlobalEventService.js';
 import { ChannelFollowingService } from '@/core/ChannelFollowingService.js';
+import { NoteEntityService } from '@/core/entities/NoteEntityService.js';
 import { isJsonObject } from '@/misc/json-value.js';
 import type { JsonObject, JsonValue } from '@/misc/json-value.js';
 import { LoggerService } from '@/core/LoggerService.js';
@@ -51,6 +52,8 @@ export default class Connection {
 		private notificationService: NotificationService,
 		private cacheService: CacheService,
 		private channelFollowingService: ChannelFollowingService,
+		private notesRepository: NotesRepository,
+		private noteEntityService: NoteEntityService,
 		loggerService: LoggerService,
 
 		user: MiUser | null | undefined,
@@ -204,16 +207,27 @@ export default class Connection {
 
 	@bindThis
 	private async onNoteStreamMessage(data: GlobalEvents['note']['payload']) {
-		// we must not send to the frontend information about notes from
-		// users who blocked the logged-in user, even when they're replies
-		// to notes the logged-in user can see
-		if (data.type === 'replied') {
-			const noteUserId = data.body.body.userId;
-			if (noteUserId !== null) {
-				if (this.userIdsWhoBlockingMe.has(noteUserId)) {
-					return;
-				}
+		const note = await this.notesRepository.findOneBy({ id: data.body.id });
+		if (!note && data.type !== 'deleted') return;
+
+		if (note) {
+			const visible = await this.noteEntityService.isVisibleForMe(note, this.user?.id ?? null, {
+				me: this.user,
+				myBlockers: this.userIdsWhoBlockingMe,
+			});
+			if (!visible) {
+				this.onUnsubscribeNote({ id: data.body.id });
+				return;
 			}
+		}
+
+		if (note?.userId && this.userIdsWhoBlockingMe.has(note.userId)) {
+			this.onUnsubscribeNote({ id: data.body.id });
+			return;
+		}
+
+		if (data.type === 'replied') {
+			if (this.userIdsWhoBlockingMe.has(data.body.body.userId)) return;
 		}
 
 		this.sendMessageToWs('noteUpdated', {
@@ -263,7 +277,7 @@ export default class Connection {
 	 * チャンネルに接続
 	 */
 	@bindThis
-	public connectChannel(id: string, params: JsonObject | undefined, channel: string, pong = false) {
+	public async connectChannel(id: string, params: JsonObject | undefined, channel: string, pong = false) {
 		if (this.channels.has(id)) {
 			this.disconnectChannel(id);
 		}
@@ -294,7 +308,11 @@ export default class Connection {
 
 		const ch: Channel = channelService.create(id, this);
 		this.channels.set(ch.id, ch);
-		ch.init(params ?? {});
+		const valid = await ch.init(params ?? {});
+		if (typeof valid === 'boolean' && !valid) {
+			this.disconnectChannel(id);
+			return;
+		}
 
 		if (pong) {
 			this.sendMessageToWs('connected', {

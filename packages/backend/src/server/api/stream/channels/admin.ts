@@ -6,8 +6,7 @@
 import { Injectable } from '@nestjs/common';
 import { bindThis } from '@/decorators.js';
 import type { JsonObject } from '@/misc/json-value.js';
-import { NoteEntityService } from '@/core/entities/NoteEntityService.js';
-import Channel, { type MiChannelService } from '../channel.js';
+import { Channel, type MiChannelService } from '../channel.js';
 
 class AdminChannel extends Channel {
 	public readonly chName = 'admin';
@@ -16,11 +15,15 @@ class AdminChannel extends Channel {
 	public static kind = 'read:admin:stream';
 
 	@bindThis
-	public async init(params: JsonObject) {
+	public async init(params: JsonObject): Promise<boolean> {
+		if (!this.user) return false;
+
 		// Subscribe admin stream
-		this.subscriber.on(`adminStream:${this.user!.id}`, data => {
+		this.subscriber.on(`adminStream:${this.user.id}`, data => {
 			this.send(data);
 		});
+
+		return true;
 	}
 }
 
@@ -30,17 +33,11 @@ export class AdminChannelService implements MiChannelService<true> {
 	public readonly requireCredential = AdminChannel.requireCredential;
 	public readonly kind = AdminChannel.kind;
 
-	constructor(
-		private readonly noteEntityService: NoteEntityService,
-	) {
-	}
-
 	@bindThis
 	public create(id: string, connection: Channel['connection']): AdminChannel {
 		return new AdminChannel(
 			id,
 			connection,
-			this.noteEntityService,
 		);
 	}
 }

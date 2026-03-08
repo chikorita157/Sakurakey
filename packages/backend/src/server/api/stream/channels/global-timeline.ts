@@ -5,15 +5,14 @@
 
 import { Injectable } from '@nestjs/common';
 import type { Packed } from '@/misc/json-schema.js';
-import { MetaService } from '@/core/MetaService.js';
 import { NoteEntityService } from '@/core/entities/NoteEntityService.js';
 import { bindThis } from '@/decorators.js';
 import { RoleService } from '@/core/RoleService.js';
 import { isRenotePacked, isQuotePacked } from '@/misc/is-renote.js';
 import type { JsonObject } from '@/misc/json-value.js';
-import Channel, { type MiChannelService } from '../channel.js';
+import { type Channel, NoteChannel, type MiChannelService } from '../channel.js';
 
-class GlobalTimelineChannel extends Channel {
+class GlobalTimelineChannel extends NoteChannel {
 	public readonly chName = 'globalTimeline';
 	public static shouldShare = false;
 	public static requireCredential = false as const;
@@ -22,15 +21,13 @@ class GlobalTimelineChannel extends Channel {
 	private withBots: boolean;
 
 	constructor(
-		private metaService: MetaService,
-		private roleService: RoleService,
-		noteEntityService: NoteEntityService,
-
 		id: string,
 		connection: Channel['connection'],
+		noteEntityService: NoteEntityService,
+
+		private roleService: RoleService,
 	) {
 		super(id, connection, noteEntityService);
-		//this.onNote = this.onNote.bind(this);
 	}
 
 	@bindThis
@@ -42,52 +39,25 @@ class GlobalTimelineChannel extends Channel {
 		this.withFiles = !!(params.withFiles ?? false);
 		this.withBots = !!(params.withBots ?? true);
 
-		// Subscribe events
 		this.subscriber.on('notesStream', this.onNote);
 	}
 
 	@bindThis
 	private async onNote(note: Packed<'Note'>) {
-		const isMe = this.user?.id === note.userId;
-
-		if (this.withFiles && (note.fileIds == null || note.fileIds.length === 0)) return;
-		if (!this.withBots && note.user.isBot) return;
-
 		if (note.visibility !== 'public') return;
 		if (note.channelId != null) return;
+		if (this.withFiles && (note.fileIds == null || note.fileIds.length === 0)) return;
+		if (!this.withBots && note.user.isBot) return;
+		if (!this.withRenotes && isRenotePacked(note) && !isQuotePacked(note)) return;
 
-		if (this.isNoteMutedOrBlocked(note)) return;
-		if (!this.isNoteVisibleToMe(note)) return;
-
-		if (note.reply) {
-			const reply = note.reply;
-			// 自分のフォローしていないユーザーの visibility: followers な投稿への返信は弾く
-			if (!this.isNoteVisibleToMe(reply)) return;
-			if (!this.following.get(note.userId)?.withReplies) {
-				// 「チャンネル接続主への返信」でもなければ、「チャンネル接続主が行った返信」でもなければ、「投稿者の投稿者自身への返信」でもない場合
-				if (reply.userId !== this.user?.id && !isMe && reply.userId !== note.userId) return;
-			}
+		const preparedNote = await this.prepareNote(note);
+		if (preparedNote) {
+			this.send('note', preparedNote);
 		}
-
-		// 純粋なリノート（引用リノートでないリノート）の場合
-		if (isRenotePacked(note) && !isQuotePacked(note) && note.renote) {
-			if (!this.withRenotes) return;
-			if (note.renote.reply) {
-				const reply = note.renote.reply;
-				// 自分のフォローしていないユーザーの visibility: followers な投稿への返信のリノートは弾く
-				if (!this.isNoteVisibleToMe(reply)) return;
-			}
-		}
-
-		const clonedNote = await this.assignMyReaction(note);
-		await this.hideNote(clonedNote);
-
-		this.send('note', clonedNote);
 	}
 
 	@bindThis
 	public dispose() {
-		// Unsubscribe events
 		this.subscriber.off('notesStream', this.onNote);
 	}
 }
@@ -99,7 +69,6 @@ export class GlobalTimelineChannelService implements MiChannelService<false> {
 	public readonly kind = GlobalTimelineChannel.kind;
 
 	constructor(
-		private metaService: MetaService,
 		private roleService: RoleService,
 		private noteEntityService: NoteEntityService,
 	) {
@@ -108,11 +77,10 @@ export class GlobalTimelineChannelService implements MiChannelService<false> {
 	@bindThis
 	public create(id: string, connection: Channel['connection']): GlobalTimelineChannel {
 		return new GlobalTimelineChannel(
-			this.metaService,
-			this.roleService,
-			this.noteEntityService,
 			id,
 			connection,
+			this.noteEntityService,
+			this.roleService,
 		);
 	}
 }

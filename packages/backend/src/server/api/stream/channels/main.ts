@@ -4,31 +4,31 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import { isInstanceMuted, isUserFromMutedInstance } from '@/misc/is-instance-muted.js';
+import { isUserFromMutedInstance } from '@/misc/is-instance-muted.js';
 import { NoteEntityService } from '@/core/entities/NoteEntityService.js';
 import { bindThis } from '@/decorators.js';
 import type { JsonObject } from '@/misc/json-value.js';
-import Channel, { type MiChannelService } from '../channel.js';
+import { type Channel, NoteChannel, type MiChannelService } from '../channel.js';
 
-class MainChannel extends Channel {
+class MainChannel extends NoteChannel {
 	public readonly chName = 'main';
 	public static shouldShare = true;
 	public static requireCredential = true as const;
 	public static kind = 'read:account';
 
 	constructor(
-		noteEntityService: NoteEntityService,
-
 		id: string,
 		connection: Channel['connection'],
+		noteEntityService: NoteEntityService,
 	) {
 		super(id, connection, noteEntityService);
 	}
 
 	@bindThis
-	public async init(params: JsonObject) {
-		// Subscribe main stream channel
-		this.subscriber.on(`mainStream:${this.user!.id}`, async data => {
+	public async init(params: JsonObject): Promise<boolean> {
+		if (!this.user) return false;
+
+		this.subscriber.on(`mainStream:${this.user.id}`, async data => {
 			switch (data.type) {
 				case 'notification': {
 					// Ignore notifications from instances the user has muted
@@ -36,8 +36,7 @@ class MainChannel extends Channel {
 					if (data.body.userId && this.userIdsWhoMeMuting.has(data.body.userId)) return;
 
 					if (data.body.note && data.body.note.isHidden) {
-						if (this.isNoteMutedOrBlocked(data.body.note)) return;
-						if (!this.isNoteVisibleToMe(data.body.id)) return;
+						if (this.isNoteVisibleForMe(data.body.note)) return;
 						const note = await this.noteEntityService.pack(data.body.note.id, this.user, {
 							detail: true,
 						});
@@ -46,6 +45,7 @@ class MainChannel extends Channel {
 					break;
 				}
 				case 'mention': {
+					if (!this.isNoteVisibleForMe(data.body)) return;
 					if (this.isNoteMutedOrBlocked(data.body)) return;
 					if (data.body.isHidden) {
 						const note = await this.noteEntityService.pack(data.body.id, this.user, {
@@ -59,6 +59,8 @@ class MainChannel extends Channel {
 
 			this.send(data.type, data.body);
 		});
+
+		return true;
 	}
 }
 
@@ -76,9 +78,9 @@ export class MainChannelService implements MiChannelService<true> {
 	@bindThis
 	public create(id: string, connection: Channel['connection']): MainChannel {
 		return new MainChannel(
-			this.noteEntityService,
 			id,
 			connection,
+			this.noteEntityService,
 		);
 	}
 }

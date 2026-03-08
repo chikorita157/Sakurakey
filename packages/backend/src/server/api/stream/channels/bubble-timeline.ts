@@ -11,9 +11,9 @@ import { RoleService } from '@/core/RoleService.js';
 import { isRenotePacked, isQuotePacked } from '@/misc/is-renote.js';
 import type { JsonObject } from '@/misc/json-value.js';
 import { UtilityService } from '@/core/UtilityService.js';
-import Channel, { MiChannelService } from '../channel.js';
+import { type Channel, MiChannelService, NoteChannel } from '../channel.js';
 
-class BubbleTimelineChannel extends Channel {
+class BubbleTimelineChannel extends NoteChannel {
 	public readonly chName = 'bubbleTimeline';
 	public static shouldShare = false;
 	public static requireCredential = false as const;
@@ -22,71 +22,47 @@ class BubbleTimelineChannel extends Channel {
 	private withBots: boolean;
 
 	constructor(
-		private roleService: RoleService,
-		private readonly utilityService: UtilityService,
-		noteEntityService: NoteEntityService,
-
 		id: string,
 		connection: Channel['connection'],
+		noteEntityService: NoteEntityService,
+
+		private roleService: RoleService,
+		private readonly utilityService: UtilityService,
 	) {
 		super(id, connection, noteEntityService);
 	}
 
 	@bindThis
-	public async init(params: JsonObject) {
+	public async init(params: JsonObject): Promise<boolean> {
 		const policies = await this.roleService.getUserPolicies(this.user ? this.user.id : null);
-		if (!policies.btlAvailable) return;
+		if (!policies.btlAvailable) return false;
 
 		this.withRenotes = !!(params.withRenotes ?? true);
 		this.withFiles = !!(params.withFiles ?? false);
 		this.withBots = !!(params.withBots ?? true);
 
-		// Subscribe events
 		this.subscriber.on('notesStream', this.onNote);
+
+		return true;
 	}
 
 	@bindThis
 	private async onNote(note: Packed<'Note'>) {
-		const isMe = this.user?.id === note.userId;
-
+		if (note.channelId != null) return;
+		if (note.visibility !== 'public') return;
+		if (!this.utilityService.isBubbledHost(note.user.host)) return;
 		if (this.withFiles && (note.fileIds == null || note.fileIds.length === 0)) return;
 		if (!this.withBots && note.user.isBot) return;
+		if (!this.withRenotes && isRenotePacked(note) && !isQuotePacked(note)) return;
 
-		if (note.visibility !== 'public') return;
-		if (note.channelId != null) return;
-		if (!this.utilityService.isBubbledHost(note.user.host)) return;
-
-		if (this.isNoteMutedOrBlocked(note)) return;
-
-		if (note.reply) {
-			const reply = note.reply;
-			// 自分のフォローしていないユーザーの visibility: followers な投稿への返信は弾く
-			if (!this.isNoteVisibleToMe(reply)) return;
-			if (!this.following.get(note.userId)?.withReplies) {
-				// 「チャンネル接続主への返信」でもなければ、「チャンネル接続主が行った返信」でもなければ、「投稿者の投稿者自身への返信」でもない場合
-				if (reply.userId !== this.user?.id && !isMe && reply.userId !== note.userId) return;
-			}
+		const preparedNote = await this.prepareNote(note);
+		if (preparedNote) {
+			this.send('note', preparedNote);
 		}
-
-		// 純粋なリノート（引用リノートでないリノート）の場合
-		if (isRenotePacked(note) && !isQuotePacked(note) && note.renote) {
-			if (!this.withRenotes) return;
-			if (note.renote.reply) {
-				const reply = note.renote.reply;
-				// 自分のフォローしていないユーザーの visibility: followers な投稿への返信のリノートは弾く
-				if (!this.isNoteVisibleToMe(reply)) return;
-			}
-		}
-
-		const clonedNote = await this.assignMyReaction(note);
-		await this.hideNote(clonedNote);
-
-		this.send('note', clonedNote);
 	}
 
 	@bindThis
 	public dispose() {
-		// Unsubscribe events
 		this.subscriber.off('notesStream', this.onNote);
 	}
 }
@@ -107,11 +83,11 @@ export class BubbleTimelineChannelService implements MiChannelService<false> {
 	@bindThis
 	public create(id: string, connection: Channel['connection']): BubbleTimelineChannel {
 		return new BubbleTimelineChannel(
-			this.roleService,
-			this.utilityService,
-			this.noteEntityService,
 			id,
 			connection,
+			this.noteEntityService,
+			this.roleService,
+			this.utilityService,
 		);
 	}
 }

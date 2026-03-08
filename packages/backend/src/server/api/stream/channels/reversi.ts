@@ -6,8 +6,7 @@
 import { Injectable } from '@nestjs/common';
 import { bindThis } from '@/decorators.js';
 import type { JsonObject } from '@/misc/json-value.js';
-import { NoteEntityService } from '@/core/entities/NoteEntityService.js';
-import Channel, { type MiChannelService } from '../channel.js';
+import { Channel, type MiChannelService } from '../channel.js';
 
 class ReversiChannel extends Channel {
 	public readonly chName = 'reversi';
@@ -18,19 +17,19 @@ class ReversiChannel extends Channel {
 	constructor(
 		id: string,
 		connection: Channel['connection'],
-		noteEntityService: NoteEntityService,
 	) {
-		super(id, connection, noteEntityService);
+		super(id, connection);
 	}
 
 	@bindThis
-	public async init(params: JsonObject) {
-		this.subscriber.on(`reversiStream:${this.user!.id}`, this.send);
+	public async init(params: JsonObject): Promise<boolean> {
+		if (!this.user) return false;
+		this.subscriber.on(`reversiStream:${this.user.id}`, this.send);
+		return true;
 	}
 
 	@bindThis
 	public dispose() {
-		// Unsubscribe events
 		this.subscriber.off(`reversiStream:${this.user!.id}`, this.send);
 	}
 }
@@ -41,17 +40,11 @@ export class ReversiChannelService implements MiChannelService<true> {
 	public readonly requireCredential = ReversiChannel.requireCredential;
 	public readonly kind = ReversiChannel.kind;
 
-	constructor(
-		private readonly noteEntityService: NoteEntityService,
-	) {
-	}
-
 	@bindThis
 	public create(id: string, connection: Channel['connection']): ReversiChannel {
 		return new ReversiChannel(
 			id,
 			connection,
-			this.noteEntityService,
 		);
 	}
 }

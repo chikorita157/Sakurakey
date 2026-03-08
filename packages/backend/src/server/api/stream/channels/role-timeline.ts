@@ -9,73 +9,45 @@ import { bindThis } from '@/decorators.js';
 import { RoleService } from '@/core/RoleService.js';
 import type { GlobalEvents } from '@/core/GlobalEventService.js';
 import type { JsonObject } from '@/misc/json-value.js';
-import { isQuotePacked, isRenotePacked } from '@/misc/is-renote.js';
-import Channel, { type MiChannelService } from '../channel.js';
+import { type Channel, NoteChannel, type MiChannelService } from '../channel.js';
 
-class RoleTimelineChannel extends Channel {
+class RoleTimelineChannel extends NoteChannel {
 	public readonly chName = 'roleTimeline';
 	public static shouldShare = false;
 	public static requireCredential = false as const;
 	private roleId: string;
 
 	constructor(
-		noteEntityService: NoteEntityService,
-		private roleservice: RoleService,
-
 		id: string,
 		connection: Channel['connection'],
+		noteEntityService: NoteEntityService,
+
+		private roleservice: RoleService,
 	) {
 		super(id, connection, noteEntityService);
-		//this.onNote = this.onNote.bind(this);
 	}
 
 	@bindThis
-	public async init(params: JsonObject) {
-		if (typeof params.roleId !== 'string') return;
+	public async init(params: JsonObject): Promise<boolean> {
+		if (typeof params.roleId !== 'string') return false;
 		this.roleId = params.roleId;
 
+		if (!(await this.roleservice.isExplorable({ id: this.roleId }))) return false;
+
 		this.subscriber.on(`roleTimelineStream:${this.roleId}`, this.onEvent);
+
+		return true;
 	}
 
 	@bindThis
 	private async onEvent(data: GlobalEvents['roleTimeline']['payload']) {
-		if (data.type === 'note') {
-			const note = data.body;
-			const isMe = this.user?.id === note.userId;
+		const note = data.body;
 
-			// TODO this should be cached
-			if (!(await this.roleservice.isExplorable({ id: this.roleId }))) {
-				return;
-			}
-			if (note.visibility !== 'public') return;
+		if (note.visibility !== 'public') return;
 
-			if (this.isNoteMutedOrBlocked(note)) return;
-
-			if (note.reply) {
-				const reply = note.reply;
-				// 自分のフォローしていないユーザーの visibility: followers な投稿への返信は弾く
-				if (!this.isNoteVisibleToMe(reply)) return;
-				if (!this.following.get(note.userId)?.withReplies) {
-					// 「チャンネル接続主への返信」でもなければ、「チャンネル接続主が行った返信」でもなければ、「投稿者の投稿者自身への返信」でもない場合
-					if (reply.userId !== this.user?.id && !isMe && reply.userId !== note.userId) return;
-				}
-			}
-
-			// 純粋なリノート（引用リノートでないリノート）の場合
-			if (isRenotePacked(note) && !isQuotePacked(note) && note.renote) {
-				if (note.renote.reply) {
-					const reply = note.renote.reply;
-					// 自分のフォローしていないユーザーの visibility: followers な投稿への返信のリノートは弾く
-					if (!this.isNoteVisibleToMe(reply)) return;
-				}
-			}
-
-			const clonedNote = await this.assignMyReaction(note);
-			await this.hideNote(clonedNote);
-
-			this.send('note', clonedNote);
-		} else {
-			this.send(data.type, data.body);
+		const preparedNote = await this.prepareNote(note);
+		if (preparedNote) {
+			this.send('note', preparedNote);
 		}
 	}
 
@@ -101,10 +73,10 @@ export class RoleTimelineChannelService implements MiChannelService<false> {
 	@bindThis
 	public create(id: string, connection: Channel['connection']): RoleTimelineChannel {
 		return new RoleTimelineChannel(
-			this.noteEntityService,
-			this.roleservice,
 			id,
 			connection,
+			this.noteEntityService,
+			this.roleservice,
 		);
 	}
 }

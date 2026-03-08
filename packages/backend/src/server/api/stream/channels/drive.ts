@@ -16,11 +16,13 @@ class DriveChannel extends Channel {
 	public static kind = 'read:account';
 
 	@bindThis
-	public async init(params: JsonObject) {
+	public async init(params: JsonObject): Promise<boolean> {
+		if (!this.user) return false;
 		// Subscribe drive stream
 		this.subscriber.on(`driveStream:${this.user!.id}`, data => {
 			this.send(data);
 		});
+		return true;
 	}
 }
 
@@ -30,17 +32,11 @@ export class DriveChannelService implements MiChannelService<true> {
 	public readonly requireCredential = DriveChannel.requireCredential;
 	public readonly kind = DriveChannel.kind;
 
-	constructor(
-		private readonly noteEntityService: NoteEntityService,
-	) {
-	}
-
 	@bindThis
 	public create(id: string, connection: Channel['connection']): DriveChannel {
 		return new DriveChannel(
 			id,
 			connection,
-			this.noteEntityService,
 		);
 	}
 }

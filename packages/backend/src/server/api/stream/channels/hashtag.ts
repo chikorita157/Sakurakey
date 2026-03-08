@@ -9,32 +9,35 @@ import type { Packed } from '@/misc/json-schema.js';
 import { NoteEntityService } from '@/core/entities/NoteEntityService.js';
 import { bindThis } from '@/decorators.js';
 import type { JsonObject } from '@/misc/json-value.js';
-import Channel, { type MiChannelService } from '../channel.js';
+import { type Channel, NoteChannel, type MiChannelService } from '../channel.js';
 
-class HashtagChannel extends Channel {
+class HashtagChannel extends NoteChannel {
 	public readonly chName = 'hashtag';
 	public static shouldShare = false;
 	public static requireCredential = false as const;
 	private q: string[][];
 
 	constructor(
-		noteEntityService: NoteEntityService,
-
 		id: string,
 		connection: Channel['connection'],
+		noteEntityService: NoteEntityService,
 	) {
 		super(id, connection, noteEntityService);
-		//this.onNote = this.onNote.bind(this);
 	}
 
 	@bindThis
-	public async init(params: JsonObject) {
-		if (!Array.isArray(params.q)) return;
-		if (!params.q.every(x => Array.isArray(x) && x.every(y => typeof y === 'string'))) return;
+	public async init(params: JsonObject): Promise<boolean> {
+		if (!Array.isArray(params.q)) return false;
+		if (!params.q.every((x): x is string[] => (
+			Array.isArray(x) &&
+			x.length >= 1 &&
+			x.every(y => typeof y === 'string')
+		))) return false;
 		this.q = params.q;
 
-		// Subscribe stream
 		this.subscriber.on('notesStream', this.onNote);
+
+		return true;
 	}
 
 	@bindThis
@@ -43,17 +46,14 @@ class HashtagChannel extends Channel {
 		const matched = this.q.some(tags => tags.every(tag => noteTags.includes(normalizeForSearch(tag))));
 		if (!matched) return;
 
-		if (this.isNoteMutedOrBlocked(note)) return;
-
-		const clonedNote = await this.assignMyReaction(note);
-		await this.hideNote(clonedNote);
-
-		this.send('note', clonedNote);
+		const preparedNote = await this.prepareNote(note);
+		if (preparedNote) {
+			this.send('note', preparedNote);
+		}
 	}
 
 	@bindThis
 	public dispose() {
-		// Unsubscribe events
 		this.subscriber.off('notesStream', this.onNote);
 	}
 }
@@ -72,9 +72,9 @@ export class HashtagChannelService implements MiChannelService<false> {
 	@bindThis
 	public create(id: string, connection: Channel['connection']): HashtagChannel {
 		return new HashtagChannel(
-			this.noteEntityService,
 			id,
 			connection,
+			this.noteEntityService,
 		);
 	}
 }

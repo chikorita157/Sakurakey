@@ -10,7 +10,7 @@ import * as WebSocket from 'ws';
 import proxyAddr from 'proxy-addr';
 import ms from 'ms';
 import { DI } from '@/di-symbols.js';
-import type { UsersRepository, MiAccessToken, MiUser } from '@/models/_.js';
+import type { UsersRepository, MiAccessToken, MiUser, NotesRepository } from '@/models/_.js';
 import type { Config } from '@/config.js';
 import type { Keyed, RateLimit } from '@/misc/rate-limit-utils.js';
 import { NotificationService } from '@/core/NotificationService.js';
@@ -22,6 +22,7 @@ import { ChannelFollowingService } from '@/core/ChannelFollowingService.js';
 import { getIpHash } from '@/misc/get-ip-hash.js';
 import { LoggerService } from '@/core/LoggerService.js';
 import { SkRateLimiterService } from '@/server/SkRateLimiterService.js';
+import { NoteEntityService } from '@/core/entities/NoteEntityService.js';
 import { AuthenticateService, AuthenticationError } from './AuthenticateService.js';
 import MainStreamConnection from './stream/Connection.js';
 import { ChannelsService } from './stream/ChannelsService.js';
@@ -44,6 +45,8 @@ export class StreamingApiServerService {
 
 		@Inject(DI.usersRepository)
 		private usersRepository: UsersRepository,
+		@Inject(DI.notesRepository)
+		private notesRepository: NotesRepository,
 
 		private cacheService: CacheService,
 		private authenticateService: AuthenticateService,
@@ -51,6 +54,7 @@ export class StreamingApiServerService {
 		private notificationService: NotificationService,
 		private usersService: UserService,
 		private channelFollowingService: ChannelFollowingService,
+		private noteEntityService: NoteEntityService,
 		private rateLimiterService: SkRateLimiterService,
 		private loggerService: LoggerService,
 
@@ -172,6 +176,8 @@ export class StreamingApiServerService {
 				this.notificationService,
 				this.cacheService,
 				this.channelFollowingService,
+				this.notesRepository,
+				this.noteEntityService,
 				this.loggerService,
 				user, app, requestIp,
 				rateLimiter,
