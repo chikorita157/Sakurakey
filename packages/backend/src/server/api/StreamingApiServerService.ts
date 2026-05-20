@@ -27,6 +27,7 @@ import { AuthenticateService, AuthenticationError } from './AuthenticateService.
 import MainStreamConnection from './stream/Connection.js';
 import { ChannelsService } from './stream/ChannelsService.js';
 import type * as http from 'node:http';
+import { renderInlineError } from '@/misc/render-inline-error.js';
 
 // Maximum number of simultaneous connections by client (user ID or IP address).
 // Excess connections will be closed automatically.
@@ -38,6 +39,7 @@ export class StreamingApiServerService {
 	#connections = new Map<WebSocket.WebSocket, number>();
 	#connectionsByClient = new Map<string, Set<WebSocket.WebSocket>>(); // key: IP / user ID -> value: connection
 	#cleanConnectionsIntervalId: NodeJS.Timeout | null = null;
+	private readonly logger: Logger;
 
 	constructor(
 		@Inject(DI.redisForSub)
@@ -61,6 +63,7 @@ export class StreamingApiServerService {
 		@Inject(DI.config)
 		private config: Config,
 	) {
+		this.logger = loggerService.getLogger('streaming', 'coral');
 	}
 
 	@bindThis
@@ -79,6 +82,11 @@ export class StreamingApiServerService {
 			noServer: true,
 			perMessageDeflate: this.config.websocketCompression,
 		});
+
+		// ws library will kill the process if we don't catch unhandled exceptions.
+		// https://github.com/websockets/ws/issues/1354#issuecomment-1343117738
+		this.#wss.on('error', this.onWsError);
+		this.#wss.on('wsClientError', this.onWsError);
 
 		server.on('upgrade', async (request, socket, head) => {
 			if (request.url == null) {
@@ -186,11 +194,21 @@ export class StreamingApiServerService {
 			await stream.init();
 
 			this.#wss.handleUpgrade(request, socket, head, (ws) => {
+				// Special handler to hard-terminate the connection if it fails during initialization.
+				const onWsInitError = (error: unknown) => {
+					this.onWsError(error);
+					ws.terminate();
+				};
+				socket.on('error', onWsInitError);
+				ws.on('error', onWsInitError);
+
 				connectionsForClient.add(ws);
 
 				// Call before emit() in case it throws an error.
 				// We don't want to leave dangling references!
 				ws.once('close', () => {
+					ws.off('error', onWsInitError);
+					socket.off('error', onWsInitError);
 					connectionsForClient.delete(ws);
 
 					// Make sure we don't leak the Set objects!
@@ -238,7 +256,10 @@ export class StreamingApiServerService {
 				this.usersService.updateLastActiveDate(user);
 			}
 
+			connection.on('error', this.onWsError);
+
 			connection.once('close', () => {
+				connection.off('error', this.onWsError);
 				ev.removeAllListeners();
 				stream.dispose();
 				globalEv.off('message', onRedisMessage);
@@ -274,5 +295,11 @@ export class StreamingApiServerService {
 		return new Promise((resolve) => {
 			this.#wss.close(() => resolve());
 		});
+	}
+
+	@bindThis
+	private onWsError(error: unknown) {
+		this.logger.error(`Unhandled error in streaming api: ${renderInlineError(error)}`);
+		this.logger.debug('Error details:', { error });
 	}
 }

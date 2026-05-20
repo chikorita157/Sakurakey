@@ -11,8 +11,10 @@ import { jest } from '@jest/globals';
 
 import { NoOpCacheService } from '../misc/noOpCaches.js';
 import { FakeInternalEventService } from '../misc/FakeInternalEventService.js';
+import { MockResolver } from '../misc/mock-resolver.js';
 import type { Config } from '@/config.js';
 import type { MiLocalUser, MiRemoteUser } from '@/models/User.js';
+import type { IActor, IApDocument, ICollection, IObject, IPost } from '@/core/activitypub/type.js';
 import { InternalEventService } from '@/core/InternalEventService.js';
 import { CacheService } from '@/core/CacheService.js';
 import { ApImageService } from '@/core/activitypub/models/ApImageService.js';
@@ -25,14 +27,12 @@ import { GlobalModule } from '@/GlobalModule.js';
 import { CoreModule } from '@/core/CoreModule.js';
 import { FederatedInstanceService } from '@/core/FederatedInstanceService.js';
 import { LoggerService } from '@/core/LoggerService.js';
-import type { IActor, IApDocument, ICollection, IObject, IPost } from '@/core/activitypub/type.js';
 import { MiMeta, MiNote, MiUser, MiUserKeypair, UserProfilesRepository, UserPublickeysRepository } from '@/models/_.js';
 import { DI } from '@/di-symbols.js';
 import { secureRndstr } from '@/misc/secure-rndstr.js';
 import { DownloadService } from '@/core/DownloadService.js';
 import { genAidx } from '@/misc/id/aidx.js';
 import { IdService } from '@/core/IdService.js';
-import { MockResolver } from '../misc/mock-resolver.js';
 import { UserKeypairService } from '@/core/UserKeypairService.js';
 import { MemoryKVCache } from '@/misc/cache.js';
 
@@ -497,7 +497,7 @@ describe('ActivityPub', () => {
 				unknown: 'test test bar',
 				undefined: 'test test baz',
 			};
-			const compacted = await jsonLdService.compact(object);
+			const compacted = await jsonLdService.use().compact(object);
 
 			assert.deepStrictEqual(compacted, {
 				'@context': CONTEXT,
